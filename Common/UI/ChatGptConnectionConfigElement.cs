@@ -12,10 +12,10 @@ using Terraria.Localization;
 using Terraria.ModLoader;
 using Terraria.ModLoader.Config.UI;
 using Terraria.UI;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 /// <summary>Browser-based ChatGPT sign-in. The game receives account labels, never OAuth tokens.</summary>
 public sealed class ChatGptConnectionConfigElement : ConfigElement

@@ -1,9 +1,9 @@
 using Terraria.ModLoader;
-using TerrariaGPT.Common.Players;
-using TerrariaGPT.Common.Services;
-using TerrariaGPT.Common.Systems;
+using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.Systems;
 
-namespace TerrariaGPT.Common.Commands;
+namespace TerrariaChatGPT.Common.Commands;
 
 public sealed class GptCommand : ModCommand
 {

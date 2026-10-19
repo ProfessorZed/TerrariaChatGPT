@@ -3,9 +3,9 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using Terraria;
-using TerrariaGPT.Common.Players;
+using TerrariaChatGPT.Common.Players;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Fabricated visible storage only; invokes the production observer.</summary>
 public static class ObservationBenchmarks

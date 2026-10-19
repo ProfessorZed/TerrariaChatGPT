@@ -16,6 +16,6 @@ $sourcePaths = @(
 )
 
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.ChestMemoryTests]::Run()
+$results = [TerrariaChatGPT.Tests.ChestMemoryTests]::Run()
 $results | ForEach-Object { Write-Output $_ }
 Write-Output "Passed $($results.Count) chest memory checks."

@@ -16,9 +16,9 @@ Add-Type -Path ($sources | ForEach-Object { Join-Path $taskRoot $_ }) -CompilerO
 if ($CompileOnly) { Write-Output 'Production native runtime acceptance harness compiled; no account or network access.'; return }
 # An unrelated inherited API key must never participate in plan acceptance.
 Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
-if ($Phase -eq 'Catalog') { [TerrariaGPT.Tests.NativeLiveAcceptance]::InspectCatalogAsync().GetAwaiter().GetResult(); return }
+if ($Phase -eq 'Catalog') { [TerrariaChatGPT.Tests.NativeLiveAcceptance]::InspectCatalogAsync().GetAwaiter().GetResult(); return }
 $watch = [Diagnostics.Stopwatch]::StartNew()
-$reply = [TerrariaGPT.Tests.NativeLiveAcceptance]::RunAsync($Phase).GetAwaiter().GetResult()
+$reply = [TerrariaChatGPT.Tests.NativeLiveAcceptance]::RunAsync($Phase).GetAwaiter().GetResult()
 $watch.Stop()
 $reply | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $taskRoot ".build/native-live-$($Phase.ToLowerInvariant()).json") -Encoding utf8
 [pscustomobject]@{ Phase=$Phase; AnswerCharacters=$reply.Answer.Length; Highlights=$reply.Highlights.Count;

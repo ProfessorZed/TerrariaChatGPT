@@ -11,5 +11,5 @@ $sourcePaths = @(
     (Join-Path $taskRoot 'tests\ChatLayoutTests.cs')
 )
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.ChatLayoutTests]::Run()
+$results = [TerrariaChatGPT.Tests.ChatLayoutTests]::Run()
 Write-Output "Passed $($results.Count) highlighting, wrapping, and viewport checks."

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace TerrariaGPT.Common.Knowledge;
+namespace TerrariaChatGPT.Common.Knowledge;
 
 /// <summary>Deterministic answers about owned items. No AI or world queries.</summary>
 public static class LocalKnowledgeAnswer

@@ -6,10 +6,10 @@ using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
-using TerrariaGPT.Common.Goals;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Goals;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Common.Players;
+namespace TerrariaChatGPT.Common.Players;
 
 /// <summary>
 /// Read-only progress and local sticky notes. Reads public defeat/rescue records,

@@ -11,6 +11,6 @@ $sourcePaths = @(
 )
 
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.LocalKnowledgeTests]::Run()
+$results = [TerrariaChatGPT.Tests.LocalKnowledgeTests]::Run()
 $results | ForEach-Object { Write-Output $_ }
 Write-Output "Passed $($results.Count) local knowledge checks."

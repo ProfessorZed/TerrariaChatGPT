@@ -3,12 +3,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Goals;
-using TerrariaGPT.Common.Players;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Goals;
+using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 public static partial class AssistantServiceTests
 {
@@ -31,7 +31,7 @@ public static partial class AssistantServiceTests
             Require(!root.GetRawText().Contains("tile 123, 456", StringComparison.Ordinal), "Coordinate chest label escaped projection.");
             Require(!root.GetRawText().Contains("PRIVATE-", StringComparison.Ordinal), "Legacy private fixture escaped.");
             Equal(0, root.GetProperty("knowledge").GetProperty("inventory").GetArrayLength());
-            Finished(); Equal(0, TerrariaGPT.Common.Knowledge.GameReferenceFacts.ResolveCalls);
+            Finished(); Equal(0, TerrariaChatGPT.Common.Knowledge.GameReferenceFacts.ResolveCalls);
         }, output);
         Check("Turning sharing off cancels late context-bearing replies and retains ordinary private-free follow-ups", () =>
         {

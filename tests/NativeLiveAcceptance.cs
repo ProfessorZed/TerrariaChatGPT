@@ -6,12 +6,12 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Native;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Native;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 // Explicit live acceptance only. Uses the native production runtime, no API key,
 // game observations, browser launches, legacy helper or loopback bridge.

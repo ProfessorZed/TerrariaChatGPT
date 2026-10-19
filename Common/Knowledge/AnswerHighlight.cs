@@ -1,5 +1,5 @@
 #nullable enable
-namespace TerrariaGPT.Common.Knowledge;
+namespace TerrariaChatGPT.Common.Knowledge;
 
 /// <summary>A literal phrase and an allowed semantic category, never a color or chat tag.</summary>
 public sealed record AnswerHighlight(string Text, string Kind)

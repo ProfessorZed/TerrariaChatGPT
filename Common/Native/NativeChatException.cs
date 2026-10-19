@@ -1,7 +1,7 @@
 #nullable enable
 using System;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 /// <summary>A fixed, display-safe failure. Never attach headers, tokens or upstream bodies.</summary>
 public sealed class NativeChatException : Exception

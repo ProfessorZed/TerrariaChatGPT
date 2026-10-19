@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
-namespace TerrariaGPT.Common.Services;
+namespace TerrariaChatGPT.Common.Services;
 
 public sealed record WebCitation(int Index, string Url, string Title);
 

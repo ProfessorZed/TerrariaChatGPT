@@ -181,7 +181,7 @@ namespace Terraria.ModLoader.IO
     }
 }
 
-namespace TerrariaGPT.Common.Knowledge
+namespace TerrariaChatGPT.Common.Knowledge
 {
     public static class GameReferenceFacts
     {

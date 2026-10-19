@@ -1,7 +1,7 @@
 using Terraria.ModLoader;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT;
+namespace TerrariaChatGPT;
 
 public sealed class TerrariaChatGPTMod : Mod
 {

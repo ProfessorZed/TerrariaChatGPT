@@ -1,2 +1,2 @@
-namespace TerrariaGPT.Common.Config;
+namespace TerrariaChatGPT.Common.Config;
 public enum GptProvider { ChatGPT, WikiOnly, OpenAiApi }

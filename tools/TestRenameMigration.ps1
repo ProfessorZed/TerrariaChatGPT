@@ -19,6 +19,6 @@ $sourcePaths = @(
     'tests\RenameMigrationTests.cs'
 ) | ForEach-Object { Join-Path $taskRoot $_ }
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.RenameMigrationTests]::Run()
+$results = [TerrariaChatGPT.Tests.RenameMigrationTests]::Run()
 $results | ForEach-Object { Write-Output $_ }
 Write-Output "Passed $($results.Count) rename migration checks."

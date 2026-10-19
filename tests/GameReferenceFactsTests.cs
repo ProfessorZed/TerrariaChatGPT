@@ -6,9 +6,9 @@ using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
 using Terraria.UI;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Exercises actual reference extraction against public-only Terraria fixtures.</summary>
 public static class GameReferenceFactsTests

@@ -10,6 +10,6 @@ $sourcePaths = @(
     'Common\Knowledge\KnowledgeSnapshot.cs', 'Common\Goals\GoalModels.cs', 'tests\NativeWikiTests.cs'
 ) | ForEach-Object { Join-Path $taskRoot $_ }
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.NativeWikiTests]::Run()
+$results = [TerrariaChatGPT.Tests.NativeWikiTests]::Run()
 $results
 Write-Output "Passed $($results.Count) native wiki checks (mocked HTTP only)."

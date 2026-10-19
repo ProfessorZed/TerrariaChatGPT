@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 public static partial class AssistantServiceTests
 {

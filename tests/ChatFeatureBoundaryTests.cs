@@ -3,10 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using TerrariaGPT.Common.Goals;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Goals;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Pure integration-boundary tests; no game, network, browser or account access.</summary>
 public static class ChatFeatureBoundaryTests

@@ -8,7 +8,7 @@ using Terraria.ID;
 using Terraria.Localization;
 using Terraria.ModLoader;
 
-namespace TerrariaGPT.Common.Knowledge;
+namespace TerrariaChatGPT.Common.Knowledge;
 
 /// <summary>Public encyclopedia data only. Never reads tiles, entities or world state.</summary>
 public static class GameReferenceFacts

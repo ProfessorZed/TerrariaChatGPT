@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace TerrariaGPT.Common.Services;
+namespace TerrariaChatGPT.Common.Services;
 
 public sealed record ConversationTurn(string Role, string Content);
 

@@ -7,5 +7,5 @@ Add-Type -Path @(
     (Join-Path $taskRoot 'Common\UI\GoalPointerCapture.cs'),
     (Join-Path $taskRoot 'tests\GoalPointerCaptureTests.cs')
 ) -CompilerOptions '/nullable:enable'
-$results = [TerrariaGPT.Tests.GoalPointerCaptureTests]::Run()
+$results = [TerrariaChatGPT.Tests.GoalPointerCaptureTests]::Run()
 Write-Output "Passed $($results.Count) goal pointer-capture regression checks."

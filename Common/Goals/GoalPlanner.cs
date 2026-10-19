@@ -2,9 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Common.Goals;
+namespace TerrariaChatGPT.Common.Goals;
 
 /// <summary>Pure local goal evaluation. It accepts detached observations and public recipes only.</summary>
 public static class GoalPlanner

@@ -1,8 +1,8 @@
 #nullable enable
 using System;
-using TerrariaGPT.Common.Goals;
+using TerrariaChatGPT.Common.Goals;
 
-namespace TerrariaGPT.Common.Players;
+namespace TerrariaChatGPT.Common.Players;
 
 public sealed class GptProgressPlayer
 {

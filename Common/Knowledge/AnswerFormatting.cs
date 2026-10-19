@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace TerrariaGPT.Common.Knowledge;
+namespace TerrariaChatGPT.Common.Knowledge;
 
 /// <summary>Literal display text only. No Terraria markup or executable links.</summary>
 public static class AnswerFormatting

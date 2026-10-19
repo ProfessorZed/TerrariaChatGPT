@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using Terraria;
 using Terraria.ModLoader;
 using Terraria.UI;
-using TerrariaGPT.Common.UI;
+using TerrariaChatGPT.Common.UI;
 
-namespace TerrariaGPT.Common.Systems;
+namespace TerrariaChatGPT.Common.Systems;
 
 public sealed class GptGoalUiSystem : ModSystem
 {

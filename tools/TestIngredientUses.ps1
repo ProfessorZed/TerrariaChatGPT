@@ -8,6 +8,6 @@ $files = @('Common\Services\GptAssistantService.cs','Common\Native\NativeChatExc
     'tests\ProgressServiceStub.cs','Common\Goals\GoalModels.cs','Common\Services\WebCitation.cs',
     'Common\Services\GoalProposalReader.cs','Common\Services\ObservedContextBuilder.cs')
 Add-Type -Path ($files | ForEach-Object { Join-Path $projectRoot $_ }) -CompilerOptions '/nullable:enable'
-$result = [TerrariaGPT.Tests.IngredientUsesTests]::Run()
+$result = [TerrariaChatGPT.Tests.IngredientUsesTests]::Run()
 $result
 Write-Output "Passed $($result.Count) ingredient-use pipeline checks."

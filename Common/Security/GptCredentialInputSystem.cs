@@ -1,8 +1,8 @@
 using Terraria;
 using Terraria.ModLoader;
-using TerrariaGPT.Common.UI;
+using TerrariaChatGPT.Common.UI;
 
-namespace TerrariaGPT.Common.Security;
+namespace TerrariaChatGPT.Common.Security;
 
 /// <summary>Keeps a detached settings row from retaining its transient draft.</summary>
 public sealed class GptCredentialInputSystem : ModSystem

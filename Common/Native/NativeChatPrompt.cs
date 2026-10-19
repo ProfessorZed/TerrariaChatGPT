@@ -5,9 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 /// <summary>Conversational instructions and a second allowlist for detached observations.</summary>
 public static class NativeChatPrompt

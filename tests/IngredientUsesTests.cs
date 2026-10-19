@@ -5,11 +5,11 @@ using System.Linq;
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Players;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 public static class IngredientUsesTests
 {
@@ -94,7 +94,7 @@ public static class IngredientUsesTests
             var b = Recipe(night, (Blade, 1), (mura, 1), (volcano, 1), (blood, 1)); b.requiredTile.Add(26);
             var skipped = Recipe(disabled, (Blade, 1)); skipped.Disabled = true; TileID.Search.Names[26] = "DemonAltar";
             SetRecipes(Recipe(Blade, (spores, 12), (stinger, 15), (vine, 3)), a, b, Recipe(other, (spores, 1)), skipped);
-            Terraria.ModLoader.ModContent.Config = new TerrariaGPT.Common.Config.GptClientConfig { EnableOnlineAnswers = false, Provider = TerrariaGPT.Common.Config.GptProvider.WikiOnly };
+            Terraria.ModLoader.ModContent.Config = new TerrariaChatGPT.Common.Config.GptClientConfig { EnableOnlineAnswers = false, Provider = TerrariaChatGPT.Common.Config.GptProvider.WikiOnly };
             Main.gameMenu = false; Main.dedServ = false; GameReferenceFacts.ResetCache(); Reset();
         }
         public void Reset() { GptAssistantService.Reset(); GptKnowledgePlayer.Snapshot = new KnowledgeSnapshot("fixture", DateTimeOffset.UnixEpoch, Array.Empty<KnowledgeSubject>(),

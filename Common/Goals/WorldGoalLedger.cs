@@ -3,9 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Terraria.ModLoader.IO;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Common.Goals;
+namespace TerrariaChatGPT.Common.Goals;
 
 /// <summary>Local character data partitioned by world. Never changes world or achievement saves.</summary>
 internal sealed class WorldGoalLedger

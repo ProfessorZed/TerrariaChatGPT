@@ -3,12 +3,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Security;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Security;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 /// <summary>One in-process connection per mod load. No worker programs or persistent local server.</summary>
 public sealed class NativeAssistantRuntime : IDisposable

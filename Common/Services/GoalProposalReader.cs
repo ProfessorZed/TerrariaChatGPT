@@ -3,9 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using TerrariaGPT.Common.Goals;
+using TerrariaChatGPT.Common.Goals;
 
-namespace TerrariaGPT.Common.Services;
+namespace TerrariaChatGPT.Common.Services;
 
 public static class GoalProposalReader
 {

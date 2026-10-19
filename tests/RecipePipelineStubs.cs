@@ -1,5 +1,5 @@
 #nullable enable
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
 namespace Terraria
 {
@@ -15,11 +15,11 @@ namespace Terraria.ModLoader
 {
     public static class ModContent
     {
-        public static TerrariaGPT.Common.Config.GptClientConfig Config = new();
+        public static TerrariaChatGPT.Common.Config.GptClientConfig Config = new();
         public static T GetInstance<T>() where T : class => (T)(object)Config;
     }
 }
-namespace TerrariaGPT.Common.Config
+namespace TerrariaChatGPT.Common.Config
 {
     public enum GptProvider { ChatGPT, WikiOnly, OpenAiApi }
     public sealed class GptClientConfig
@@ -30,7 +30,7 @@ namespace TerrariaGPT.Common.Config
         public GptProvider Provider = GptProvider.ChatGPT;
     }
 }
-namespace TerrariaGPT.Common.Players
+namespace TerrariaChatGPT.Common.Players
 {
     public sealed class GptKnowledgePlayer
     {

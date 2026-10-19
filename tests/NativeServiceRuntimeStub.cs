@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 // Network/auth are tested separately with injected HTTP handlers. This seam tests
 // the real game-thread controller, privacy projection, history and cancellation.

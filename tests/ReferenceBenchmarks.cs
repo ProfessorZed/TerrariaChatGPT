@@ -5,9 +5,9 @@ using System.Linq;
 using Terraria;
 using Terraria.ID;
 using Terraria.UI;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Only generated public item definitions; no player/world state exists in this host.</summary>
 public static class ReferenceBenchmarks

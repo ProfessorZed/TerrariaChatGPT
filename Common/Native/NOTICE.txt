@@ -19,3 +19,7 @@ The upstream license and third-party notices are included alongside this notice.
 Terraria ChatGPT 0.9.0 (2026-10-19): updated the app name in display labels,
 first-time registration hints and network User-Agent values. Existing encrypted
 storage locations and the authentication protocol remain compatible.
+
+Terraria ChatGPT 0.9.1 (2026-10-19): corrected the C# namespace to match the
+tModLoader mod identifier. Legacy storage paths and saved-data identifiers are
+unchanged.

@@ -2,9 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Common.Goals;
+namespace TerrariaChatGPT.Common.Goals;
 
 /// <summary>An untrusted suggestion. Acceptance validates it against local public definitions.</summary>
 public sealed record GoalStepDefinition(string Kind, string Key, string Label, int Target = 1);

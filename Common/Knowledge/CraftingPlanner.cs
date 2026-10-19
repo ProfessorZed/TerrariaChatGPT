@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace TerrariaGPT.Common.Knowledge;
+namespace TerrariaChatGPT.Common.Knowledge;
 
 public sealed record CraftingIngredientSource(string ItemName, int Stack, string Location, bool IsRemembered, DateTimeOffset? LastObservedUtc);
 

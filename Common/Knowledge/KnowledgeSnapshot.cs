@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace TerrariaGPT.Common.Knowledge;
+namespace TerrariaChatGPT.Common.Knowledge;
 
 /// <summary>A subject this character has actually encountered in this world.</summary>
 public sealed record KnowledgeSubject(string Kind, string Key, string Name);

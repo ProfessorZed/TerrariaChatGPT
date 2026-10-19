@@ -13,7 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 internal sealed record NativeAuthCallbackResult(string Code, string ClientId);
 internal sealed class NativeAuthCallback : IDisposable

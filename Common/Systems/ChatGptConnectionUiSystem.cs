@@ -1,7 +1,7 @@
 using Terraria.ModLoader;
-using TerrariaGPT.Common.UI;
+using TerrariaChatGPT.Common.UI;
 
-namespace TerrariaGPT.Common.Systems;
+namespace TerrariaChatGPT.Common.Systems;
 
 public sealed class ChatGptConnectionUiSystem : ModSystem
 {

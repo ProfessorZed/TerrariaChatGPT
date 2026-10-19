@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Terraria.ModLoader.IO;
 
-namespace TerrariaGPT.Common.Knowledge;
+namespace TerrariaChatGPT.Common.Knowledge;
 
 /// <summary>Player-owned persistence, partitioned by world UUID.</summary>
 internal sealed class WorldKnowledgeLedger

@@ -1,7 +1,7 @@
 #nullable enable
 using System;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 /// <summary>Short progress labels keep known counts separate from remembered supplies.</summary>
 internal static class GoalNoteText

@@ -14,9 +14,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 /// <summary>Owns OAuth inside tModLoader. No companion, child runtime, or API-key fallback.</summary>
 public sealed class NativeChatGptSession : IDisposable

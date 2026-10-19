@@ -1,7 +1,7 @@
 #nullable enable
 using System;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 internal readonly record struct ChatRect(int X, int Y, int Width, int Height)
 {

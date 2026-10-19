@@ -13,7 +13,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 internal sealed record NativeAuthEndpoints(Uri Authorization, Uri Token, Uri Jwks, Uri? Revoke);
 internal sealed record NativeVerifiedIdentity(string Subject, NativeAuthIdentity Identity);

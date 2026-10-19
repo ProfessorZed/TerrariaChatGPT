@@ -11,6 +11,6 @@ $sourcePaths = @(
     (Join-Path $taskRoot 'tests\CraftingPlannerTests.cs')
 )
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.CraftingPlannerTests]::Run()
+$results = [TerrariaChatGPT.Tests.CraftingPlannerTests]::Run()
 $results | ForEach-Object { Write-Output $_ }
 Write-Output "Passed $($results.Count) crafting planner checks."

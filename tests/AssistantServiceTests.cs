@@ -11,13 +11,13 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Players;
-using TerrariaGPT.Common.Services;
-using TerrariaGPT.Common.Native;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.Native;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Production service against an in-process connection fixture and fabricated observations.</summary>
 public static partial class AssistantServiceTests

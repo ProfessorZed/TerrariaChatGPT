@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
 // Deliberately exposes no real game, save, credential or world-state APIs.
 namespace Terraria
@@ -31,11 +31,11 @@ namespace Terraria.ModLoader
 {
     public static class ModContent
     {
-        public static TerrariaGPT.Common.Config.GptClientConfig Config = new();
+        public static TerrariaChatGPT.Common.Config.GptClientConfig Config = new();
         public static T GetInstance<T>() where T : class => (T)(object)Config;
     }
 }
-namespace TerrariaGPT.Common.Config
+namespace TerrariaChatGPT.Common.Config
 {
     public enum GptProvider { ChatGPT, WikiOnly, OpenAiApi }
     public sealed class GptClientConfig
@@ -46,7 +46,7 @@ namespace TerrariaGPT.Common.Config
         public GptProvider Provider = GptProvider.ChatGPT;
     }
 }
-namespace TerrariaGPT.Common.Players
+namespace TerrariaChatGPT.Common.Players
 {
     public sealed class GptKnowledgePlayer
     {
@@ -56,7 +56,7 @@ namespace TerrariaGPT.Common.Players
         public string ForgetOpenChest() => "Fabricated chest forgotten.";
     }
 }
-namespace TerrariaGPT.Common.Knowledge
+namespace TerrariaChatGPT.Common.Knowledge
 {
     // Public catalog fixture only. Local arithmetic and privacy projection use
     // the production service, snapshot, planner and formatting implementations.

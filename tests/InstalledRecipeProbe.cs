@@ -7,7 +7,7 @@ using System.Text.Json;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
 namespace RecipeProbe;
 

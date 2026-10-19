@@ -58,6 +58,8 @@ try {
     if ($packageInfo.Name -ne $modName -or $packageInfo.Version -ne $expectedVersion) {
         throw 'The staged package does not match the version just built.'
     }
+    # Compilation alone does not enforce tModLoader's namespace/type identity rules.
+    & (Join-Path $PSScriptRoot 'TestModIdentity.ps1') -PackagePath $builtMod -TmlPath $TmlPath
     Write-Host "Built and verified Terraria ChatGPT $($packageInfo.Version): $builtMod"
     Write-Host "Prepared Workshop source: $sourceRoot"
 } finally { Pop-Location }

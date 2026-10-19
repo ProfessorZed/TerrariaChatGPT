@@ -4,7 +4,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TerrariaGPT.Common.Security;
+namespace TerrariaChatGPT.Common.Security;
 
 /// <summary>
 /// Stores only a Windows-account-encrypted credential, compatible with the

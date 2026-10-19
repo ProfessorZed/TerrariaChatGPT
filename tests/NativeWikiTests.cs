@@ -9,10 +9,10 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Native;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Native;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 public static class NativeWikiTests
 {

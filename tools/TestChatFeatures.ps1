@@ -11,6 +11,6 @@ $sourcePaths = @(
     'tests\ChatFeatureBoundaryTests.cs'
 ) | ForEach-Object { Join-Path $taskRoot $_ }
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.ChatFeatureBoundaryTests]::Run()
+$results = [TerrariaChatGPT.Tests.ChatFeatureBoundaryTests]::Run()
 $results | ForEach-Object { Write-Output $_ }
 Write-Output "Passed $($results.Count) chat feature boundary checks."

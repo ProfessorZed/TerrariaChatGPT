@@ -9,13 +9,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Terraria;
 using Terraria.ModLoader;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Players;
-using TerrariaGPT.Common.Goals;
-using TerrariaGPT.Common.Native;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Goals;
+using TerrariaChatGPT.Common.Native;
 
-namespace TerrariaGPT.Common.Services;
+namespace TerrariaChatGPT.Common.Services;
 
 public sealed record ChatEntry(string Role, string Text, DateTimeOffset Timestamp)
 {

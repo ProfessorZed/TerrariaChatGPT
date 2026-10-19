@@ -2,9 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TerrariaGPT.Common.Goals;
+using TerrariaChatGPT.Common.Goals;
 
-namespace TerrariaGPT.Common.Services;
+namespace TerrariaChatGPT.Common.Services;
 
 /// <summary>Explicit bounded export. Never serialize a game object or legacy world snapshot.</summary>
 public static class ObservedContextBuilder

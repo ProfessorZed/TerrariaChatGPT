@@ -9,11 +9,11 @@ using Terraria;
 using Terraria.GameInput;
 using Terraria.ModLoader;
 using ReLogic.OS;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Services;
-using TerrariaGPT.Common.UI;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.UI;
 
-namespace TerrariaGPT.Common.Systems;
+namespace TerrariaChatGPT.Common.Systems;
 
 /// <summary>
 /// Keeps GPT text entirely outside the vanilla outgoing-chat buffer. The original

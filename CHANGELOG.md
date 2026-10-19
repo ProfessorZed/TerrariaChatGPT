@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1 — Fix loading after the rename
+
+- Fixed the top-level code namespace to match `TerrariaChatGPT`, as required by
+  tModLoader's loader. Version 0.9.0 compiled but was rejected at startup.
+- Added compiled-mod identity validation to the build to catch this before
+  installation and publication.
+- Kept legacy encrypted login paths and player-data migration identifiers intact.
+
 ## 0.9.0 — Terraria ChatGPT
 
 - Prepared the public release under the distinct name **Terraria ChatGPT** and

@@ -9,10 +9,10 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 /// <summary>Optional Wiki-only provider. Only public titles/question text are sent to the official wiki.</summary>
 public sealed class NativeWikiClient : IDisposable

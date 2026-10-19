@@ -2,10 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.UI;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.UI;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Exercises real formatting and arithmetic helpers with detached fabricated data.</summary>
 public static class AnswerFormattingTests

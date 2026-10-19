@@ -5,7 +5,7 @@
 Chat with ChatGPT while playing Terraria. Ask questions, look things up online,
 and pin goals that follow your progress—all inside tModLoader.
 
-**Version 0.9.0 · Windows · Client-side tModLoader mod**
+**Version 0.9.1 · Windows · Client-side tModLoader mod**
 
 This is an unofficial community project by
 [ProfessorZed](https://github.com/ProfessorZed), not a product of Re-Logic or
@@ -99,7 +99,9 @@ mod.
 On Windows, run **Build Mod.cmd**, then close tModLoader and run
 **Install Mod.cmd**. The build uses tModLoader's included compiler and creates
 `dist/TerrariaChatGPT.tmod`; Python, Node.js, and a separate .NET SDK are not
-required. For a different Steam library or save location:
+required. Every build also checks the packaged assembly using the installed
+tModLoader loader's namespace and mod-type validation. For a different Steam
+library or save location:
 
 ```powershell
 .\tools\Build.ps1 -TmlPath 'D:\SteamLibrary\steamapps\common\tModLoader'

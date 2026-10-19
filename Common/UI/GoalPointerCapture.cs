@@ -1,5 +1,5 @@
 #nullable enable
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 /// <summary>
 /// A note owns a mouse gesture until its physical release. Vanilla may rearm

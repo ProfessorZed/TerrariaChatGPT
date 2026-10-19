@@ -2,9 +2,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Native;
+using TerrariaChatGPT.Common.Native;
 
-namespace TerrariaGPT.Common.Services;
+namespace TerrariaChatGPT.Common.Services;
 
 public enum ChatGptConnectionAction { Status, SignIn, SignOut, Welcome, ManageUsage }
 

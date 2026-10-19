@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using Terraria;
 using Terraria.ID;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Players;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Real question -> public resolver -> recipe extraction -> comparison -> displayed colored answer.</summary>
 public static class RecipePipelineTests
@@ -64,7 +64,7 @@ public static class RecipePipelineTests
     private static void Reset(ItemStackSnapshot[] inventory, ItemStackSnapshot[] chest)
     {
         GptAssistantService.Reset();
-        Terraria.ModLoader.ModContent.Config.Provider = TerrariaGPT.Common.Config.GptProvider.WikiOnly;
+        Terraria.ModLoader.ModContent.Config.Provider = TerrariaChatGPT.Common.Config.GptProvider.WikiOnly;
         GptKnowledgePlayer.Snapshot = new KnowledgeSnapshot("fixture", DateTimeOffset.UnixEpoch,
             Array.Empty<KnowledgeSubject>(), inventory,
             new[] { new OwnedChestSnapshot("Materials", 0, 0, DateTimeOffset.UnixEpoch, chest) }, Array.Empty<string>());

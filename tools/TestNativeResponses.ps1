@@ -12,6 +12,6 @@ $sourcePaths = @(
     'tests\NativeResponsesTests.cs'
 ) | ForEach-Object { Join-Path $taskRoot $_ }
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.NativeResponsesTests]::Run()
+$results = [TerrariaChatGPT.Tests.NativeResponsesTests]::Run()
 $results
 Write-Output "Passed $($results.Count) native response transport checks (mocked HTTP only)."

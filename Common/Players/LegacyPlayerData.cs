@@ -5,7 +5,7 @@ using Terraria;
 using Terraria.ModLoader.Default;
 using Terraria.ModLoader.IO;
 
-namespace TerrariaGPT.Common.Players;
+namespace TerrariaChatGPT.Common.Players;
 
 /// <summary>
 /// Imports this project's pre-release player records after the internal mod rename.

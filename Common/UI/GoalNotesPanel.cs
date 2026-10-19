@@ -9,11 +9,11 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.GameInput;
 using Terraria.ModLoader;
-using TerrariaGPT.Common.Goals;
-using TerrariaGPT.Common.Players;
-using TerrariaGPT.Common.Systems;
+using TerrariaChatGPT.Common.Goals;
+using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Systems;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 /// <summary>Read-only automatic progress, with explicit local pin/remove actions.</summary>
 internal sealed class GoalNotesPanel

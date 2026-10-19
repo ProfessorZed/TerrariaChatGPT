@@ -9,5 +9,5 @@ Add-Type -Path @(
     (Join-Path $taskRoot 'Common\UI\GoalNoteText.cs'),
     (Join-Path $taskRoot 'tests\GoalNoteLayoutTests.cs')
 ) -CompilerOptions '/nullable:enable'
-$results = [TerrariaGPT.Tests.GoalNoteLayoutTests]::Run()
+$results = [TerrariaChatGPT.Tests.GoalNoteLayoutTests]::Run()
 Write-Output "Passed $($results.Count) goal-note viewport, drag, and multi-note checks."

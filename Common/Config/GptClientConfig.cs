@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using Newtonsoft.Json;
 using Terraria.ModLoader.Config;
-using TerrariaGPT.Common.UI;
+using TerrariaChatGPT.Common.UI;
 
-namespace TerrariaGPT.Common.Config;
+namespace TerrariaChatGPT.Common.Config;
 
 public enum GptProvider
 {

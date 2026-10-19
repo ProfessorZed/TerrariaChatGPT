@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using TerrariaGPT.Common.Native;
+using TerrariaChatGPT.Common.Native;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Public/fabricated complete Responses text. No game or network access.</summary>
 public static class NativeReplyTests

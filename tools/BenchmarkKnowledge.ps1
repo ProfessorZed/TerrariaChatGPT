@@ -12,5 +12,5 @@ if ($Scenario -eq 'Observation') {
         'Common\Knowledge\GameReferenceFacts.cs', 'tests\GameReferenceFactsStubs.cs', 'tests\ReferenceBenchmarks.cs')
 }
 Add-Type -Path ($sourcePaths | ForEach-Object { Join-Path $taskRoot $_ }) -CompilerOptions '/nullable:enable'
-if ($Scenario -eq 'Observation') { [TerrariaGPT.Tests.ObservationBenchmarks]::Run() | ConvertTo-Json }
-else { [TerrariaGPT.Tests.ReferenceBenchmarks]::Run() | ConvertTo-Json }
+if ($Scenario -eq 'Observation') { [TerrariaChatGPT.Tests.ObservationBenchmarks]::Run() | ConvertTo-Json }
+else { [TerrariaChatGPT.Tests.ReferenceBenchmarks]::Run() | ConvertTo-Json }

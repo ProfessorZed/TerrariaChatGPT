@@ -15,6 +15,6 @@ $sourcePaths = @(
 )
 
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop
-$results = [TerrariaGPT.Tests.GameReferenceFactsTests]::Run()
+$results = [TerrariaChatGPT.Tests.GameReferenceFactsTests]::Run()
 $results | ForEach-Object { Write-Output $_ }
 Write-Output "Passed $($results.Count) public reference extraction checks."

@@ -6,11 +6,11 @@ using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader.Default;
 using Terraria.ModLoader.IO;
-using TerrariaGPT.Common.Goals;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Players;
+using TerrariaChatGPT.Common.Goals;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Players;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 public static class RenameMigrationTests
 {

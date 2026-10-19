@@ -5,11 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using TerrariaGPT.Common.Goals;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Goals;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 public sealed record NativeSourceAnnotation(string Url, string Title, int Start, int End);
 public sealed record NativeChatReply(string Answer, IReadOnlyList<AnswerHighlight> Highlights,

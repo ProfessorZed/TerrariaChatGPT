@@ -10,11 +10,11 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.GameInput;
 using Terraria.ModLoader;
-using TerrariaGPT.Common.Config;
-using TerrariaGPT.Common.Services;
-using TerrariaGPT.Common.Players;
+using TerrariaChatGPT.Common.Config;
+using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.Players;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 internal readonly record struct GptChatLayout(
     Rectangle Panel, Rectangle Transcript, Rectangle Input,

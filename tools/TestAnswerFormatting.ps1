@@ -7,6 +7,6 @@ $sourcePaths = @('Common\Knowledge\AnswerHighlight.cs', 'Common\Knowledge\Answer
     'Common\Knowledge\KnowledgeSnapshot.cs', 'Common\Knowledge\CraftingPlanner.cs',
     'Common\Knowledge\LocalKnowledgeAnswer.cs', 'Common\UI\ChatTextLayout.cs', 'tests\AnswerFormattingTests.cs')
 Add-Type -Path ($sourcePaths | ForEach-Object { Join-Path $taskRoot $_ }) -CompilerOptions '/nullable:enable'
-$results = [TerrariaGPT.Tests.AnswerFormattingTests]::Run()
+$results = [TerrariaChatGPT.Tests.AnswerFormattingTests]::Run()
 $results
 Write-Output "Passed $($results.Count) answer formatting checks."

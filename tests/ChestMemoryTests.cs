@@ -5,10 +5,10 @@ using System.Linq;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader.IO;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Players;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Players;
 
-namespace TerrariaGPT.Tests;
+namespace TerrariaChatGPT.Tests;
 
 /// <summary>Behavioral checks of the actual game observer using guarded dummy chests.</summary>
 public static class ChestMemoryTests

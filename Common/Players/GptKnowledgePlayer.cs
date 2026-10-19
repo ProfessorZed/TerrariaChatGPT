@@ -6,9 +6,9 @@ using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Common.Players;
+namespace TerrariaChatGPT.Common.Players;
 
 /// <summary>
 /// Local observations only. In particular, never iterate Main.chest: the single

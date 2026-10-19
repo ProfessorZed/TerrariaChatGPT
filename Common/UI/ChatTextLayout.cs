@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using TerrariaGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Knowledge;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 internal enum AnswerTextKind : byte { Plain, Muted, Location, Item, Missing, Owned, Citation }
 internal readonly record struct ChatTextSpan(string Text, AnswerTextKind Kind, int LinkId = 0);

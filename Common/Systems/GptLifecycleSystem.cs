@@ -1,10 +1,10 @@
 using Terraria;
 using Terraria.ModLoader;
-using TerrariaGPT.Common.Services;
-using TerrariaGPT.Common.Knowledge;
-using TerrariaGPT.Common.Native;
+using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Native;
 
-namespace TerrariaGPT.Common.Systems;
+namespace TerrariaChatGPT.Common.Systems;
 
 public sealed class GptLifecycleSystem : ModSystem
 {

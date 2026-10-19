@@ -13,7 +13,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 // Private persistence types deliberately never cross into chat, settings, or diagnostics.
 internal sealed class NativeAuthState

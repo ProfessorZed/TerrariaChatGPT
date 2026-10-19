@@ -1,7 +1,7 @@
 #nullable enable
 using System;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 /// <summary>Viewport-only note layout. It never reads world tiles or entities.</summary>
 internal readonly record struct GoalNoteGeometry(ChatRect Panel, ChatRect Header, ChatRect Body,

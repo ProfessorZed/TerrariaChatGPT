@@ -13,9 +13,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TerrariaGPT.Common.Services;
+using TerrariaChatGPT.Common.Services;
 
-namespace TerrariaGPT.Common.Native;
+namespace TerrariaChatGPT.Common.Native;
 
 /// <summary>Direct, bounded HTTPS inference. No helper process, local server, game access or tool execution.</summary>
 public sealed class NativeResponsesClient : IDisposable

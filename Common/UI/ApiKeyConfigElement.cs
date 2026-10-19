@@ -10,9 +10,9 @@ using Terraria.GameInput;
 using Terraria.Localization;
 using Terraria.ModLoader.Config.UI;
 using Terraria.UI;
-using TerrariaGPT.Common.Security;
+using TerrariaChatGPT.Common.Security;
 
-namespace TerrariaGPT.Common.UI;
+namespace TerrariaChatGPT.Common.UI;
 
 /// <summary>
 /// A write-only, masked credential editor. No key is assigned to the config
