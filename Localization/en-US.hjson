@@ -1,0 +1,108 @@
+Mods: {
+	TerrariaChatGPT: {
+		Configs: {
+			GptClientConfig: {
+				DisplayName: GPT
+
+				Provider: {
+					Label: Answer provider
+					Tooltip: ChatGPT uses your connected plan allowance. Wiki only needs no AI account. OpenAI API uses a saved key and is billed separately; choose it explicitly to enable API charges.
+				}
+
+				ChatGptConnection: {
+					Label: ChatGPT connection
+					Tooltip: Connect an eligible ChatGPT account through OpenAI's browser sign-in page. The connection runs inside tModLoader.
+				}
+
+				OpenAiApiKey: {
+					Label: Optional OpenAI API key (separately billed)
+					Tooltip: Used only when you select OpenAI API as the answer provider. Paste or type your key, then choose Save key. It is saved immediately, encrypted for your Windows account, separately from mod settings.
+				}
+
+				EnableOnlineAnswers: {
+					Label: Enable online answers
+					Tooltip: Allow ChatGPT, OpenAI API and wiki requests over the internet. Local goal tracking and inventory tools keep working when disabled.
+				}
+
+				ShareObservedInventory: {
+					Label: Include observed items in Wiki only mode
+					Tooltip: Applies only to Wiki only mode. Online ChatGPT and API use the separate Share observed progress setting below. Remembered contents come only from chests you opened in single-player.
+				}
+
+				EnableWebSearch: {
+					Label: Allow live web search
+					Tooltip: Let GPT look things up when helpful. Web answers show small clickable source numbers. Uses the selected provider and never switches billing providers.
+				}
+
+				ShareObservedProgress: {
+					Label: Share observed progress with GPT
+					Tooltip: Share your items, opened-chest memories, recorded boss defeats, visited biomes, NPC conversations/rescues and account achievements. No hidden map, unopened chest or other-player data. Changing this clears remote conversation context. Goal notes still update locally when off.
+				}
+
+				ChatTextScale: {
+					Label: GPT text size
+					Tooltip: Make GPT conversations easier to read. Text wraps to fit the panel automatically.
+				}
+
+				ChatPanelWidth: {
+					Label: GPT panel width
+					Tooltip: Preferred width in interface pixels. The panel always fits your screen and interface scale.
+				}
+
+				ChatPanelHeight: {
+					Label: GPT panel height
+					Tooltip: Preferred height in interface pixels. Increase this to see more of an answer at once.
+				}
+			}
+
+			GptProvider: {
+				OpenAiApi.Tooltip: ""
+				WikiOnly.Tooltip: ""
+				ChatGPT.Tooltip: ""
+				Tooltip: ""
+			}
+		}
+
+		Keybinds.ToggleGptChat.DisplayName: Open GPT chat
+
+		Providers: {
+			ChatGPT: ChatGPT plan
+			WikiOnly: Wiki only (no AI account)
+			OpenAiApi: OpenAI API (separately billed)
+		}
+
+		ChatGptConnection: {
+			Title: Use your ChatGPT plan
+			Continue: Continue with ChatGPT
+			SignOut: Sign out
+			ManageUsage: Manage usage
+			UsingPlan: Using ChatGPT plan
+			Connected: ChatGPT account connected
+			NotConnected: ChatGPT account not connected
+			SigningIn: Finish signing in through your browser
+			PlanNotice: Eligible requests use your ChatGPT plan allowance or credits balance.
+			BrowserNotice: Continue opens OpenAI's sign-in page in your browser.
+			Ready: Select ChatGPT plan as the answer provider to use this connection.
+			NoFallback: The mod never switches to separately billed API usage automatically.
+			WelcomeTitle: You're using your ChatGPT plan
+			WelcomeBody: Eligible AI requests in Terraria ChatGPT use your ChatGPT plan.
+			WelcomeUsage: You can manage usage in your ChatGPT settings.
+			GotIt: Got it
+		}
+
+		CredentialEditor: {
+			InputPlaceholder: Click to type your key, or choose Paste
+			Paste: Paste
+			Save: Save key
+			Clear: Clear key
+			Stored: A key is saved on this computer. Enter a new key to replace it.
+			NotStored: No key saved. Paste a key and choose Save key.
+			Saved: Key saved securely. Select OpenAI API to use it (separately billed).
+			Cleared: API key cleared. Your ChatGPT connection is unchanged.
+			InvalidKey: Enter a valid API key (20-512 characters, without spaces).
+			PasteFailed: Could not read the clipboard. Try typing your key instead.
+			SaveFailed: Could not save the key. Check access to your Documents folder.
+			UsageNotice: OpenAI API usage is billed separately. The connection runs inside tModLoader.
+		}
+	}
+}

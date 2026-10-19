@@ -1,0 +1,21 @@
+Native authentication and response transport attribution
+
+The NativeAuth*.cs, NativeChatGptSession.cs and NativeResponsesClient.cs files
+adapt the Sign in with ChatGPT DevKit local reference implementation to C#/.NET
+inside tModLoader. Upstream copyright 2026 OpenAI; revision
+0a36fefeb913055c8c7a1a29b63d82b96b2e841a.
+https://github.com/openai/sign-in-with-chatgpt-devkit
+
+Changes for Terraria GPT 0.8.0 (2026-10-19): native HTTPS/OAuth and loopback
+callback handling, Windows DPAPI storage, legacy-profile handover, serialized
+refresh checkpoints, bounded SSE parsing, safe diagnostics and independent
+regression checks. These adaptations retain the included Sign-in with ChatGPT
+DevKit Noncommercial License v1.0. Other independently authored mod components
+are not relicensed by this notice.
+
+The .tmod contains no JavaScript SDK runtime and starts no Node/Python program.
+The upstream license and third-party notices are included alongside this notice.
+
+Terraria ChatGPT 0.9.0 (2026-10-19): updated the app name in display labels,
+first-time registration hints and network User-Agent values. Existing encrypted
+storage locations and the authentication protocol remain compatible.

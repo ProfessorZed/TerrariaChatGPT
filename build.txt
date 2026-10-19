@@ -1,0 +1,7 @@
+displayName = Terraria ChatGPT
+author = ProfessorZed
+version = 0.9.0
+homepage = https://github.com/ProfessorZed/TerrariaChatGPT
+side = Client
+includeSource = false
+buildIgnore = bridge\*, tools\*, tests\*, docs\*, assets\*, dist\*, .build\*, .git\*, .github\*, .gitignore, *.ps1, *.cmd, *.csproj, README.md, CHANGELOG.md, icon_workshop.png
