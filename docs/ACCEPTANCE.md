@@ -1,4 +1,4 @@
-# Terraria ChatGPT 0.9.0 acceptance checks
+# Terraria ChatGPT 0.9.2 acceptance checks
 
 These are manual expectations, not a claim of completed gameplay testing.
 See [the changelog](../CHANGELOG.md) for release scope. Record actual compiler,
@@ -13,7 +13,7 @@ observations and dummy credentials for payload inspection; never log real secret
 | --- | --- | --- |
 | Original flight issue | Ask “what can i use to fly in pre hardmode”. | Practical options without an excerpt/evidence refusal. No hidden-world claims. |
 | Source lookup | Ask to search the official wiki for Rocket Boots. | Normal answer with genuine clickable inline sources and search status. No long link footer. |
-| Source click | Hover/click a source; repeat after scrolling and resizing. | Correct source title/URL, opens only on click. No stale hitboxes. |
+| Source click | Hover/click a source; repeat after scrolling and resizing. | Correct source title/URL copied only on click. No browser launches or stale hitboxes. |
 | Search off | Disable Live web search, ask a basic question. | Ordinary GPT answer with no fabricated search status. |
 | Search failure | Mock an unsupported search tool or timeout. | Clear error; no switch to paid API/wiki and controls recover. |
 | Recipe direction | Ask how to make Blade of Grass, then what can be made using it. | Full recipe and appropriate Night's Edge follow-up; no reversed template. |
@@ -70,6 +70,9 @@ observations and dummy credentials for payload inspection; never log real secret
 | Credentials and billing | Mock plan error with dummy saved API key. | No automatic API request; safe error without credentials in logs/UI. |
 | Connection | Disconnect/reconnect the network around a request. | Bounded error, subsequent question succeeds, no wiki replacement. |
 | Restart | Close and reopen tModLoader, then ask a question. | Saved connection restores without launching a companion; revoked authorization gives a useful reconnect message. |
+| Manual sign-in link | Continue with ChatGPT, copy link, finish in browser. Also cancel and retry. | No browser launches; link contains no identity token/email hint. Callback is temporary and rejects stale or mismatched state. |
+| Custom saves | Start with a custom tModLoader save path. | Credential files remain inside that active save path; old external folders are not accessed by the mod. |
+| Storage failure | Use synthetic missing/corrupt/linked/locked credential fixtures. | Safe error, no secret-bearing logs, no import or replay of an older saved refresh token. |
 | Chat wheel | Hover GPT chat and scroll, then move outside it and scroll. | Chat scrolling leaves the selected hotbar item unchanged; normal game scrolling works outside the panel. |
 
 Legacy WikiOnly inventory/recipe/chest utilities remain separate from online

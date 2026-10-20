@@ -1,4 +1,5 @@
 // C# adaptation of OpenAI Sign in with ChatGPT DevKit; see NOTICE.txt and SignInWithChatGPT-LICENSE.txt.
+// Terraria ChatGPT 0.9.2: reject ambiguous discovery and pre-filled endpoint queries (2026-10-20).
 // Terraria GPT 0.8.0: native storage/OAuth, safe migration and refresh recovery (2026-10-19).
 #nullable enable
 using System;
@@ -32,6 +33,7 @@ internal sealed class NativeAuthProtocol
         try
         {
             var root = body.RootElement;
+            EnsureUnique(root);
             if (root.GetProperty("issuer").GetString() != Issuer) throw new FormatException();
             Uri Endpoint(string name) => SafeEndpoint(root.GetProperty(name).GetString());
             return new(Endpoint("authorization_endpoint"), Endpoint("token_endpoint"), Endpoint("jwks_uri"),
@@ -42,7 +44,7 @@ internal sealed class NativeAuthProtocol
     internal static Uri SafeEndpoint(string? value)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != "auth.openai.com" ||
-            !uri.IsDefaultPort || uri.UserInfo.Length != 0 || uri.Fragment.Length != 0) throw new FormatException();
+            !uri.IsDefaultPort || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0) throw new FormatException();
         return uri;
     }
     internal Task<JsonDocument> TokenAsync(NativeAuthEndpoints endpoints, Dictionary<string, string> fields, CancellationToken cancellation)

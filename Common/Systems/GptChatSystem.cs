@@ -83,7 +83,16 @@ public sealed class GptChatSystem : ModSystem
         if (_connectionRequest is { IsCompleted: true })
         {
             if (_connectionRequest.IsCompletedSuccessfully)
-                _connection = _connectionRequest.Result;
+            {
+                var result = _connectionRequest.Result;
+                _connection = result with { ClipboardLink = "" };
+                if (result.ClipboardLink.Length != 0)
+                {
+                    try { Platform.Get<IClipboard>().Value = result.ClipboardLink; _copyStatus = "Link copied"; }
+                    catch { _copyStatus = "Couldn't copy"; }
+                    _copyStatusUntil = Main.GameUpdateCount + 180;
+                }
+            }
             _connectionRequest = null;
             _nextConnectionPoll = DateTimeOffset.UtcNow.AddSeconds(5);
         }
@@ -219,7 +228,7 @@ public sealed class GptChatSystem : ModSystem
             Main.LocalPlayer.mouseInterface = true;
             if (clicked)
             {
-                RequestConnection(ChatGptConnectionAction.ManageUsage);
+                RequestConnection(ChatGptConnectionAction.CopyUsageLink);
                 Main.clrInput();
                 return;
             }

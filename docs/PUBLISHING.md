@@ -29,6 +29,13 @@ the build or the installed mod.
 
 ## Steam Workshop
 
+The existing item is [3822943933](https://steamcommunity.com/sharedfiles/filedetails/?id=3822943933).
+Update this item; do not create a duplicate. **Keep visibility Private (shown as
+Hidden by Steam) until the moderator review is approved.** The 0.9.2 storage and
+copy-link changes address the external-file and external-program concerns.
+Windows DPAPI/native security operations and the temporary loopback sign-in
+listener remain disclosed for review; do not describe the build as approved.
+
 After building, run `tools/PrepareWorkshop.ps1`. This adds the correctly named
 source entry to tModLoader's Develop Mods menu without moving your project.
 It leaves an existing unrelated source folder untouched.

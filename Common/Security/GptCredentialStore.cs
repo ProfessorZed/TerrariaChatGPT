@@ -14,16 +14,9 @@ public static class GptCredentialStore
 {
     public const int MaximumKeyLength = 512;
 
-    public static string GetPath()
-    {
-        string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        if (string.IsNullOrWhiteSpace(documents))
-            throw new IOException("The Documents folder could not be located.");
-
-        // A test world's save path must not redirect account credentials.
-        return Path.Combine(documents, "My Games", "Terraria", "tModLoader",
-            "TerrariaGPT", "openai-key.dpapi");
-    }
+    private const string Filename = "openai-key.dpapi";
+    private static SecureCredentialDirectory Files => new(CredentialStoragePaths.GetDirectory());
+    public static string GetPath() => Files.PathFor(Filename);
 
     public static bool HasSavedKey
     {
@@ -31,12 +24,13 @@ public static class GptCredentialStore
         {
             try
             {
-                FileInfo file = new(GetPath());
-                return file.Exists && file.Length > 0;
+                var files = Files;
+                return files.Exists(Filename) && files.ReadBytes(Filename, 16384, true).Length > 0;
             }
             catch (IOException) { return false; }
             catch (UnauthorizedAccessException) { return false; }
             catch (System.Security.SecurityException) { return false; }
+            catch (PlatformNotSupportedException) { return false; }
         }
     }
 
@@ -73,8 +67,7 @@ public static class GptCredentialStore
 
     public static void ClearKey()
     {
-        // An empty file explicitly disables a previously saved key, including
-        // an older companion's inherited OPENAI_API_KEY environment fallback.
+        // An empty encrypted-store marker means the user explicitly cleared it.
         WriteAtomically(string.Empty);
     }
 
@@ -82,11 +75,9 @@ public static class GptCredentialStore
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Encrypted key storage currently requires Windows.");
-        string path = GetPath();
-        if (!File.Exists(path)) return string.Empty;
-        if (new FileInfo(path).Length > 16384)
-            throw new IOException("The saved API key needs to be replaced in settings.");
-        string ciphertext = File.ReadAllText(path).Trim();
+        var files = Files;
+        if (!files.Exists(Filename)) return string.Empty;
+        string ciphertext = Encoding.UTF8.GetString(files.ReadBytes(Filename, 16384, true)).Trim();
         if (ciphertext.Length == 0) return string.Empty;
         byte[] plaintext = ProtectedData.Unprotect(Convert.FromHexString(ciphertext), null, DataProtectionScope.CurrentUser);
         try
@@ -102,20 +93,6 @@ public static class GptCredentialStore
 
     private static void WriteAtomically(string ciphertext)
     {
-        string path = GetPath();
-        string directory = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(directory);
-        string temporaryPath = Path.Combine(directory, $".openai-key-{Guid.NewGuid():N}.tmp");
-        try
-        {
-            File.WriteAllText(temporaryPath, ciphertext, new UTF8Encoding(false));
-            File.Move(temporaryPath, path, true);
-        }
-        finally
-        {
-            // The temporary file contains ciphertext only.
-            if (File.Exists(temporaryPath))
-                File.Delete(temporaryPath);
-        }
+        Files.AtomicWrite(Filename, Encoding.UTF8.GetBytes(ciphertext), 16384, true);
     }
 }

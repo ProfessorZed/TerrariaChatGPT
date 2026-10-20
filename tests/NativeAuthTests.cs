@@ -39,10 +39,19 @@ public static class NativeAuthTests
             Check(!NativeAuthCallback.TryParse("GET /auth/callback?" + suffix + " HTTP/1.1\r\nHost: 127.0.0.1:1234\r\n\r\n", "http://127.0.0.1:1234/auth/callback", "secret-state", out _), "Wrong or duplicate callback parameters rejected");
         Check(!NativeAuthCallback.TryParse("GET /auth/callback?state=secret-state HTTP/1.1\r\nHost: evil.example\r\n\r\n", "http://127.0.0.1:1234/auth/callback", "secret-state", out _), "Callback host mismatch rejected");
         Check(!NativeAuthCallback.TryParse("GET /callback?state=secret-state HTTP/1.1\r\nHost: 127.0.0.1:1234\r\n\r\n", "http://127.0.0.1:1234/auth/callback", "secret-state", out _), "Different callback path rejected");
+        foreach (string endpoint in new[] { "http://auth.openai.com/authorize", "https://evil.example/authorize", "https://auth.openai.com:444/authorize",
+            "https://user@auth.openai.com/authorize", "https://auth.openai.com/authorize?login_hint=private", "https://auth.openai.com/authorize#token" })
+        {
+            bool rejected = false;
+            try { NativeAuthProtocol.SafeEndpoint(endpoint); }
+            catch (FormatException) { rejected = true; }
+            Check(rejected, "Unsafe or pre-filled discovery endpoint rejected");
+        }
 
         using RSA rsa = RSA.Create(2048);
         using var handler = new FixtureHandler(rsa);
         using var http = new HttpClient(handler);
+        await CheckLazyStorage(root, http);
         var protocol = new NativeAuthProtocol(http);
         var endpoints = await protocol.DiscoverAsync(CancellationToken.None);
         var accessOnly = Profile(); accessOnly.Credentials!.RefreshToken = null;
@@ -68,11 +77,13 @@ public static class NativeAuthTests
             state = store.Read(); state.Profiles.Add(Profile()); state.ActiveProfileId = "profile-test"; state.Welcomed.Add("profile-test"); store.Write(state);
         }
         Check(!Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(directory, "native-auth.dpapi"))).Contains("test-access", StringComparison.Ordinal), "Native credential file does not contain plaintext tokens");
-        int browserOpens = 0;
-        using (var session = new NativeChatGptSession(directory, http, uri => { browserOpens++; return Task.CompletedTask; }))
+        using (var session = new NativeChatGptSession(directory, http))
         {
             var status = await session.RequestAsync(ChatGptConnectionAction.Status, CancellationToken.None);
-            Check(status.Connected && status.UsingPlan && !status.WelcomePending && browserOpens == 0, "Startup restores acknowledged account without opening browser");
+            Check(status.Connected && status.UsingPlan && !status.WelcomePending && status.ClipboardLink.Length == 0 && !status.CanCopySignInLink, "Startup restores acknowledged account without exposing sign-in links");
+            var usage = await session.RequestAsync(ChatGptConnectionAction.CopyUsageLink, CancellationToken.None);
+            Check(usage.ClipboardLink == "https://chatgpt.com/settings/usage", "Explicit usage click returns the fixed public settings link");
+            Check((await session.RequestAsync(ChatGptConnectionAction.Status, CancellationToken.None)).ClipboardLink.Length == 0, "Copied links never persist in ordinary status responses");
             Check(await session.GetAccessTokenAsync(CancellationToken.None) == "test-access", "Unexpired token reused without refresh");
             using (var locked = await store.LockAsync(CancellationToken.None)) { state = store.Read(); state.Active!.Credentials!.ExpiresAt = 1; store.Write(state); }
             handler.RefreshCount = 0;
@@ -87,7 +98,7 @@ public static class NativeAuthTests
         }
         handler.KeysUnavailable = false;
         int previousCount = handler.RefreshCount;
-        using (var restored = new NativeChatGptSession(directory, http, _ => Task.CompletedTask))
+        using (var restored = new NativeChatGptSession(directory, http))
         {
             Check(await restored.GetAccessTokenAsync(CancellationToken.None) == "successor-access" && handler.RefreshCount == previousCount, "Restart verifies checkpoint without reusing consumed refresh token");
             using (var locked = await store.LockAsync(CancellationToken.None))
@@ -132,6 +143,7 @@ public static class NativeAuthTests
         await CheckMigration(root);
         await CheckInteractive(root, handler, http);
         await CheckInteractive(root, handler, http, true);
+        await CheckCancellation(root, http);
         await CheckTerminalRefresh(root, handler, http);
         using (var identityOnly = JsonDocument.Parse("{\"scope\":\"openid profile email\",\"id_token\":\"synthetic-signed-id-token\"}"))
             Check(NativeAuthProtocol.ReadTokens(identityOnly.RootElement, null, false).Credentials.AccessToken.Length == 0, "Identity-only sign-in does not fabricate plan credentials");
@@ -140,25 +152,44 @@ public static class NativeAuthTests
     private static NativeAuthProfile Profile() => new() { Id = "profile-test", Label = "Test account", ClientId = "oaiapp_test", Status = "connected", SavedAt = DateTimeOffset.UtcNow.ToString("O"), Subject = "subject-test",
         Identity = new() { Email = "fixture@example.invalid" }, Scopes = new() { "openid", "offline_access", "chatgpt.tokens.use.direct" },
         Credentials = new() { AccessToken = "test-access", RefreshToken = "test-refresh", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds() } };
+    private static async Task CheckLazyStorage(string root, HttpClient http)
+    {
+        string previous = Terraria.Main.SavePath;
+        try
+        {
+            Terraria.Main.SavePath = "";
+            using var session = new NativeChatGptSession(httpClient: http);
+            var status = await session.RequestAsync(ChatGptConnectionAction.Status, CancellationToken.None);
+            Check(!status.Connected && status.IsError && status.ClipboardLink.Length == 0 && status.Account.Length == 0,
+                "Missing save path does not fail session construction or throw from status");
+            Check(!status.Message.Contains(root, StringComparison.OrdinalIgnoreCase) && !status.Message.Contains("C:", StringComparison.OrdinalIgnoreCase),
+                "Unavailable save-path status contains no filesystem paths");
+            await Fails(() => session.GetAccessTokenAsync(CancellationToken.None), "storage_unavailable", "Missing save path fails inference safely instead of accessing another location");
+            Terraria.Main.SavePath = "private-invalid-location";
+            status = await session.RequestAsync(ChatGptConnectionAction.Status, CancellationToken.None);
+            Check(status.IsError && !status.Message.Contains("private-invalid-location", StringComparison.Ordinal), "Invalid save-path values never appear in connection errors");
+            string save = Path.Combine(root, ".build", "native-auth-lazy-" + Guid.NewGuid().ToString("N"));
+            Terraria.Main.SavePath = save;
+            var statuses = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => session.RequestAsync(ChatGptConnectionAction.Status, CancellationToken.None)));
+            Check(statuses.All(value => !value.IsError && !value.Connected) && File.Exists(Path.Combine(save, "TerrariaChatGPT", "native-auth.dpapi")),
+                "Session recovers safely when the active save path becomes available, including concurrent status requests");
+        }
+        finally { Terraria.Main.SavePath = previous; }
+    }
     private static async Task CheckMigration(string root)
     {
-        string directory = Path.Combine(root, ".build", "native-auth-migration-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
-        var profile = Profile();
-        byte[] encrypted = NativeAuthDpapi.Protect(JsonSerializer.SerializeToUtf8Bytes(new { version = 2, activeProfileId = profile.Id, profiles = new[] { profile }, pendingRegistrations = Array.Empty<object>() }, NativeAuthStorage.JsonOptions));
-        string legacy = JsonSerializer.Serialize(new { version = 3, provider = "windows-dpapi-v1", ciphertext = Convert.ToBase64String(encrypted) });
+        string directory = Path.Combine(root, ".build", "native-auth-no-legacy-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
+        const string legacy = "deliberately invalid obsolete credentials";
         File.WriteAllText(Path.Combine(directory, "chatgpt-auth.json"), legacy);
-        string host = "urn:uuid:" + Guid.NewGuid(); File.WriteAllText(Path.Combine(directory, "chatgpt-host.json"), JsonSerializer.Serialize(new { version = 1, id = host }));
-        File.WriteAllText(Path.Combine(directory, "welcome.json"), "[\"profile-test\"]");
+        File.WriteAllText(Path.Combine(directory, "chatgpt-host.json"), legacy);
+        File.WriteAllText(Path.Combine(directory, "welcome.json"), legacy);
         var store = new NativeAuthStorage(directory);
         Directory.CreateDirectory(Path.Combine(directory, ".chatgpt-auth.lock"));
-        await Fails(() => Task.Run(() => store.Read()), "storage_busy", "Migration refuses active companion credential lock");
-        Directory.Delete(Path.Combine(directory, ".chatgpt-auth.lock"));
         using var locked = await store.LockAsync(CancellationToken.None);
         var state = store.Read();
-        Check(state.HostId == host && state.Active?.Credentials?.AccessToken == "test-access" && state.Welcomed.Contains("profile-test"), "Legacy encrypted profile host and welcome acknowledgement migrate together");
-        Check(File.ReadAllText(Path.Combine(directory, "chatgpt-auth.json")) == legacy, "Migration preserves original encrypted credential file");
-        state.Active!.Credentials!.AccessToken = "native-newer"; store.Write(state);
-        Check(store.Read().Active!.Credentials!.AccessToken == "native-newer", "Native state takes precedence over obsolete legacy tokens");
+        Check(state.Active is null && state.Profiles.Count == 0 && state.HostId.StartsWith("urn:uuid:", StringComparison.Ordinal), "Runtime ignores obsolete credentials host welcome and migration locks");
+        Check(File.ReadAllText(Path.Combine(directory, "chatgpt-auth.json")) == legacy, "Runtime leaves obsolete credential files untouched");
+        Check(store.Read().HostId == state.HostId, "Fresh encrypted host identity persists across reads");
     }
     private static async Task CheckInteractive(string root, FixtureHandler handler, HttpClient http, bool upgrade = false)
     {
@@ -170,26 +201,13 @@ public static class NativeAuthTests
             var old = Profile(); old.RequiresNewRegistration = true; old.Status = "reauth_required"; old.Credentials = null;
             saved.Profiles.Add(old); saved.ActiveProfileId = old.Id; store.Write(saved);
         }
-        Uri? authorization = null;
-        using var session = new NativeChatGptSession(directory, http, async uri =>
-        {
-            authorization = uri;
-            var query = uri.Query.TrimStart('?').Split('&').Select(p => p.Split('=', 2)).ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p[1]));
-            handler.AuthorizationNonce = query["nonce"];
-            handler.ExpectedVerifierChallenge = query["code_challenge"];
-            handler.ExpectedRedirect = query["redirect_uri"];
-            using var callbackHttp = new HttpClient(new HttpClientHandler { UseProxy = false });
-            var wrong = await callbackHttp.GetAsync(query["redirect_uri"] + "?state=wrong&code=wrong&client_id=oaiapp_test");
-            Check(wrong.StatusCode == HttpStatusCode.BadRequest, "Unrelated wrong-state request does not consume sign-in transaction");
-            var result = await callbackHttp.GetAsync(query["redirect_uri"] + "?state=" + Uri.EscapeDataString(query["state"]) + "&code=fake-code&client_id=oaiapp_test");
-            Check(result.IsSuccessStatusCode && result.Headers.CacheControl?.NoStore == true, "Callback response disables browser caching");
-        });
-        await session.RequestAsync(ChatGptConnectionAction.SignIn, CancellationToken.None);
+        using var session = new NativeChatGptSession(directory, http);
+        Uri authorization = await CompleteInteractive(session, handler);
         ChatGptConnectionStatus current;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         do { await Task.Delay(30, timeout.Token); current = await session.RequestAsync(ChatGptConnectionAction.Status, timeout.Token); } while (current.SigningIn);
         Check(current.Connected && current.WelcomePending && current.UsingPlan, "Browser PKCE callback signs in but requires welcome acknowledgement: " + current.Message);
-        Check(authorization?.Host == "auth.openai.com" && authorization.Query.Contains("dynamic_agent_client") && authorization.Query.Contains("ext_agent_host_id"), "First registration uses official authorize endpoint and persistent host identifier");
+        Check(authorization.Host == "auth.openai.com" && authorization.Query.Contains("dynamic_agent_client") && authorization.Query.Contains("ext_agent_host_id"), "First registration uses official authorize endpoint and persistent host identifier");
         Check(handler.VerifierMatched, "Authorization code exchange uses exact callback URI and PKCE verifier");
         await Fails(() => session.GetAccessTokenAsync(CancellationToken.None), "welcome_required", "Plan inference blocked before explicit welcome acknowledgement");
         await session.RequestAsync(ChatGptConnectionAction.Welcome, CancellationToken.None);
@@ -199,13 +217,77 @@ public static class NativeAuthTests
             using var locked = await store.LockAsync(CancellationToken.None); var saved = store.Read();
             Check(saved.Profiles.Count == 2 && saved.Active!.Id != "profile-test" && saved.Profiles.Single(p => p.Id == "profile-test").RequiresNewRegistration, "Old localhost registration can reconnect while preserving original profile");
         }
-        string? priorHost = authorization?.Query.Split('&').Single(p => p.StartsWith("ext_agent_host_id=", StringComparison.Ordinal));
-        await session.RequestAsync(ChatGptConnectionAction.SignIn, CancellationToken.None);
+        string priorHost = authorization.Query.Split('&').Single(p => p.StartsWith("ext_agent_host_id=", StringComparison.Ordinal));
+        authorization = await CompleteInteractive(session, handler);
         do { await Task.Delay(30, timeout.Token); current = await session.RequestAsync(ChatGptConnectionAction.Status, timeout.Token); } while (current.SigningIn);
         Check(current.Connected && authorization is not null && !authorization.Query.Contains("dynamic_agent_client", StringComparison.Ordinal)
-            && authorization.Query.Contains("id_token_hint=", StringComparison.Ordinal) && !authorization.Query.Contains("agent_name_hint=", StringComparison.Ordinal)
+            && !authorization.Query.Contains("id_token_hint=", StringComparison.Ordinal) && !authorization.Query.Contains("login_hint=", StringComparison.Ordinal)
+            && !authorization.Query.Contains("agent_name_hint=", StringComparison.Ordinal)
             && authorization.Query.Split('&').Single(p => p.StartsWith("ext_agent_host_id=", StringComparison.Ordinal)) == priorHost,
-            "Returning authorization reuses issued client host and identity hints");
+            "Returning authorization reuses registration without exposing identity-token or account hints");
+        var completed = await session.RequestAsync(ChatGptConnectionAction.CopySignInLink, CancellationToken.None);
+        Check(!completed.CanCopySignInLink && completed.ClipboardLink.Length == 0, "Completed sign-in no longer exposes its temporary link");
+    }
+    private static async Task<Uri> PrepareInteractive(NativeChatGptSession session)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await session.RequestAsync(ChatGptConnectionAction.SignIn, timeout.Token);
+        ChatGptConnectionStatus current;
+        bool statusContainsNoLinks = true;
+        do
+        {
+            await Task.Delay(30, timeout.Token);
+            current = await session.RequestAsync(ChatGptConnectionAction.Status, timeout.Token);
+            statusContainsNoLinks &= current.ClipboardLink.Length == 0;
+            if (!current.SigningIn) throw new Exception("Sign-in preparation unexpectedly stopped: " + current.Message);
+        } while (!current.CanCopySignInLink);
+        Check(statusContainsNoLinks, "Status polling never exposes the pending authorization URL");
+        var copy = await session.RequestAsync(ChatGptConnectionAction.CopySignInLink, timeout.Token);
+        var uri = new Uri(copy.ClipboardLink);
+        var query = Query(uri);
+        Check(uri.Scheme == "https" && uri.Host == "auth.openai.com" && uri.IsDefaultPort && uri.UserInfo.Length == 0, "Sign-in copy returns only the verified OpenAI HTTPS origin");
+        Check(!query.ContainsKey("login_hint") && !query.ContainsKey("id_token_hint") && !query.ContainsKey("code_verifier")
+            && !query.ContainsKey("access_token") && !query.ContainsKey("refresh_token"), "Copied authorization URL excludes email hints, identity tokens and PKCE verifier");
+        Check(query["code_challenge_method"] == "S256" && query["state"].Length >= 43 && query["nonce"].Length >= 43, "Manual browser flow retains PKCE, unpredictable state and nonce");
+        return uri;
+    }
+    private static Dictionary<string, string> Query(Uri uri) => uri.Query.TrimStart('?').Split('&').Select(p => p.Split('=', 2))
+        .ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p[1]));
+    private static async Task<Uri> CompleteInteractive(NativeChatGptSession session, FixtureHandler handler)
+    {
+        Uri authorization = await PrepareInteractive(session);
+        var query = Query(authorization);
+        handler.AuthorizationNonce = query["nonce"];
+        handler.ExpectedVerifierChallenge = query["code_challenge"];
+        handler.ExpectedRedirect = query["redirect_uri"];
+        using var callbackHttp = new HttpClient(new HttpClientHandler { UseProxy = false });
+        using var wrong = await callbackHttp.GetAsync(query["redirect_uri"] + "?state=wrong&code=wrong&client_id=oaiapp_test");
+        Check(wrong.StatusCode == HttpStatusCode.BadRequest, "Unrelated wrong-state request does not consume sign-in transaction");
+        using var result = await callbackHttp.GetAsync(query["redirect_uri"] + "?state=" + Uri.EscapeDataString(query["state"]) + "&code=fake-code&client_id=oaiapp_test");
+        string response = await result.Content.ReadAsStringAsync();
+        Check(result.IsSuccessStatusCode && result.Headers.CacheControl?.NoStore == true && response.Contains("history.replaceState", StringComparison.Ordinal)
+            && !response.Contains("fake-code", StringComparison.Ordinal), "Callback disables caching and scrubs address bar without echoing the authorization code");
+        return authorization;
+    }
+    private static async Task CheckCancellation(string root, HttpClient http)
+    {
+        string directory = Path.Combine(root, ".build", "native-auth-cancel-" + Guid.NewGuid().ToString("N"));
+        var store = new NativeAuthStorage(directory);
+        using (var locked = await store.LockAsync(CancellationToken.None))
+        { var state = store.Read(); state.Profiles.Add(Profile()); state.ActiveProfileId = "profile-test"; state.Welcomed.Add("profile-test"); store.Write(state); }
+        using var session = new NativeChatGptSession(directory, http);
+        Uri authorization = await PrepareInteractive(session);
+        var cancelled = await session.RequestAsync(ChatGptConnectionAction.CancelSignIn, CancellationToken.None);
+        Check(cancelled.Connected && !cancelled.SigningIn && !cancelled.CanCopySignInLink && cancelled.ClipboardLink.Length == 0, "Cancel sign-in immediately removes the link and preserves existing connection");
+        await Task.Delay(100);
+        Check((await session.RequestAsync(ChatGptConnectionAction.CopySignInLink, CancellationToken.None)).ClipboardLink.Length == 0, "Cancelled sign-in cannot copy a stale URL");
+        Check(await session.GetAccessTokenAsync(CancellationToken.None) == "test-access", "Cancelling a reconnect keeps the saved usable credentials");
+        using var callbackHttp = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(2) };
+        bool refused = false;
+        try { using var response = await callbackHttp.GetAsync(Query(authorization)["redirect_uri"] + "?state=late&code=fake"); }
+        catch (HttpRequestException) { refused = true; }
+        catch (OperationCanceledException) { refused = true; }
+        Check(refused, "Cancelled listener no longer accepts local callbacks");
     }
     private static async Task CheckTerminalRefresh(string root, FixtureHandler handler, HttpClient http)
     {
@@ -213,7 +295,7 @@ public static class NativeAuthTests
         var store = new NativeAuthStorage(directory);
         using (var locked = await store.LockAsync(CancellationToken.None))
         { var state = store.Read(); var profile = Profile(); profile.Credentials!.ExpiresAt = 1; state.Profiles.Add(profile); state.ActiveProfileId = profile.Id; state.Welcomed.Add(profile.Id); store.Write(state); }
-        using var session = new NativeChatGptSession(directory, http, _ => Task.CompletedTask);
+        using var session = new NativeChatGptSession(directory, http);
         handler.RejectRefresh = "invalid";
         await Fails(() => session.GetAccessTokenAsync(CancellationToken.None), "invalid_grant", "Terminal refresh rejection requests reauthorization");
         handler.RejectRefresh = null;

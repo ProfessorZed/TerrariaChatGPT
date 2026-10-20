@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.2 — Protected storage and copy-link sign-in
+
+- Moved encrypted ChatGPT login and optional API-key storage under the active
+  tModLoader save directory, including custom save locations. The installer can
+  preserve an existing encrypted native login without decrypting it.
+- Removed runtime access to old companion credential files and external paths.
+- Replaced browser launching with explicit copy-link controls for sign-in,
+  account usage, and web sources. Sign-in links omit saved identity tokens and
+  email hints; OAuth state, PKCE, identity verification and timeout remain.
+- Hardened credential permissions, linked-path handling, atomic writes and
+  release packaging. Added regression checks for storage and migration failures.
+- Kept saved login, web search, goals and fair-play restrictions. The Workshop
+  item remains private pending moderator approval of the remaining native
+  encryption and local sign-in callback behavior.
+
 ## 0.9.1 — Fix loading after the rename
 
 - Fixed the top-level code namespace to match `TerrariaChatGPT`, as required by

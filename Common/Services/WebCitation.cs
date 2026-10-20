@@ -8,7 +8,7 @@ namespace TerrariaChatGPT.Common.Services;
 
 public sealed record WebCitation(int Index, string Url, string Title);
 
-/// <summary>Only explicit clicks on validated public HTTP(S) citations open a browser.</summary>
+/// <summary>Only explicit clicks on validated public HTTP(S) citations can copy a source link.</summary>
 public static class WebCitationLinks
 {
     public static bool TryGetPublicUri(string? raw, out Uri? uri)

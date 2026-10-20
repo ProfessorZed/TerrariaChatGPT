@@ -1,11 +1,11 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Graphics;
+using ReLogic.OS;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.GameInput;
@@ -95,8 +95,8 @@ internal sealed class GptChatPanel
         }
         else if (hit.Citation is not null && WebCitationLinks.TryGetPublicUri(hit.Citation.Url, out Uri? uri))
         {
-            try { Process.Start(new ProcessStartInfo(uri!.AbsoluteUri) { UseShellExecute = true }); }
-            catch { _actionStatus = "Couldn't open that source in your browser."; }
+            try { Platform.Get<IClipboard>().Value = uri!.AbsoluteUri; _actionStatus = "Source link copied. Paste it into your browser."; }
+            catch { _actionStatus = "Couldn't copy that source link."; }
         }
         _actionStatusUntil = Main.GameUpdateCount + 300;
         return true;
@@ -215,7 +215,7 @@ internal sealed class GptChatPanel
         DrawClippedText(spriteBatch, HeadToFit(text, badge.Width, 0.62f),
             new Vector2(badge.X, badge.Y + 1), color, 0.62f, badge);
         if (provider == GptProvider.ChatGPT)
-            DrawButton(spriteBatch, layout.ManageUsage, "Manage usage", true, 0.61f);
+            DrawButton(spriteBatch, layout.ManageUsage, "Copy usage link", true, 0.55f);
     }
 
     private void UpdateLines(IReadOnlyList<ChatEntry> messages, int width, float scale, DynamicSpriteFont font, int visibleLines)
@@ -240,7 +240,7 @@ internal sealed class GptChatPanel
                 "Try: How do I get Starfury?\n" +
                 "Or: Help me prepare for my next boss fight.\n\n" +
                 "Ask for a goal, then choose Set goal? to pin a progress note.\n" +
-                "Web sources appear as small clickable numbers.", AnswerTextKind.Plain) },
+                "Click a small source number to copy its link.", AnswerTextKind.Plain) },
                 Math.Max(1, width / scale), character => Metrics(font, character), font.CharacterSpacing);
         }
         _cachedCount = messages.Count;
@@ -348,7 +348,7 @@ internal sealed class GptChatPanel
         Point mouse = UiMouse();
         ChatActionHit? hit = _actions.LastOrDefault(action => action.Citation is not null && action.Bounds.Contains(mouse));
         if (hit?.Citation is not WebCitation citation || !WebCitationLinks.TryGetPublicUri(citation.Url, out Uri? uri)) return;
-        DrawLiteralTooltip(batch, (string.IsNullOrWhiteSpace(citation.Title) ? uri!.Host : citation.Title) + "\n" + uri!.Host + " - Click to open", mouse);
+        DrawLiteralTooltip(batch, (string.IsNullOrWhiteSpace(citation.Title) ? uri!.Host : citation.Title) + "\n" + uri!.Host + " - Click to copy link", mouse);
     }
 
     internal static void DrawLiteralTooltip(SpriteBatch batch, string text, Point mouse)

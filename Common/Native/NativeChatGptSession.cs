@@ -1,12 +1,11 @@
 // C# adaptation of OpenAI Sign in with ChatGPT DevKit; see NOTICE.txt and SignInWithChatGPT-LICENSE.txt.
+// Terraria ChatGPT 0.9.2: save-path storage, manual copy-link sign-in and cancellation isolation (2026-10-20).
 // Terraria ChatGPT 0.9.0: renamed app labels; existing credential storage retained (2026-10-19).
 // Terraria GPT 0.8.0: native storage/OAuth, safe migration and refresh recovery (2026-10-19).
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -15,32 +14,42 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.Security;
 
 namespace TerrariaChatGPT.Common.Native;
 
 /// <summary>Owns OAuth inside tModLoader. No companion, child runtime, or API-key fallback.</summary>
 public sealed class NativeChatGptSession : IDisposable
 {
-    private readonly NativeAuthStorage _store;
+    private readonly Lazy<NativeAuthStorage> _store;
+    private NativeAuthStorage Store => _store.Value;
     private readonly NativeAuthProtocol _protocol;
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
-    private readonly Func<Uri, Task> _openBrowser;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _signInCancellation;
     private Task? _signIn;
+    private Uri? _signInUri;
+    private int _signInGeneration;
     private string _message = "";
     private bool _isError;
     private bool _disposed;
 
-    public NativeChatGptSession(string? storageDirectory = null, HttpClient? httpClient = null, Func<Uri, Task>? openBrowser = null)
+    public NativeChatGptSession(string? storageDirectory = null, HttpClient? httpClient = null)
     {
-        _store = new NativeAuthStorage(storageDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TerrariaGPT", "ChatGPT"));
+        // Mod loading does not require a configured save path or touch credentials.
+        // PublicationOnly keeps initialization thread safe without caching a missing-
+        // save-path failure forever. The factory only validates paths; it performs no IO.
+        _store = new Lazy<NativeAuthStorage>(() =>
+        {
+            try { return new NativeAuthStorage(storageDirectory ?? CredentialStoragePaths.GetDirectory()); }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            { throw new NativeChatException("storage_unavailable", "The active tModLoader save folder is unavailable. Your saved credentials have been preserved. Try again after loading finishes."); }
+        }, LazyThreadSafetyMode.PublicationOnly);
         _http = httpClient ?? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = Timeout.InfiniteTimeSpan };
         _ownsHttp = httpClient is null;
         _protocol = new NativeAuthProtocol(_http);
-        _openBrowser = openBrowser ?? OpenBrowserAsync;
     }
     public async Task<ChatGptConnectionStatus> RequestAsync(ChatGptConnectionAction action, CancellationToken cancellation)
     {
@@ -50,13 +59,22 @@ public sealed class NativeChatGptSession : IDisposable
         try
         {
             ThrowIfDisposed();
-            if (action == ChatGptConnectionAction.ManageUsage)
-                await _openBrowser(new Uri("https://chatgpt.com/settings/usage"));
+            string clipboardLink = action == ChatGptConnectionAction.CopyUsageLink ? "https://chatgpt.com/settings/usage" : "";
+            if (action == ChatGptConnectionAction.CopySignInLink && _signIn is { IsCompleted: false }
+                && _signInCancellation?.IsCancellationRequested == false && _signInUri is not null)
+                clipboardLink = _signInUri.AbsoluteUri;
+            if (action is ChatGptConnectionAction.CancelSignIn or ChatGptConnectionAction.SignOut)
+            {
+                _signInGeneration++;
+                _signInCancellation?.Cancel();
+                _signInUri = null;
+                if (action == ChatGptConnectionAction.CancelSignIn)
+                { _message = "ChatGPT sign-in cancelled. Your saved connection was preserved."; _isError = false; }
+            }
             if (action == ChatGptConnectionAction.SignOut)
             {
-                _signInCancellation?.Cancel();
-                using var fileLock = await _store.LockAsync(ct);
-                var state = _store.Read(); var profile = state.Active;
+                using var fileLock = await Store.LockAsync(ct);
+                var state = Store.Read(); var profile = state.Active;
                 bool confirmed = true;
                 if (profile is not null)
                 {
@@ -69,29 +87,30 @@ public sealed class NativeChatGptSession : IDisposable
                     catch { confirmed = false; }
                     profile.Credentials = null; profile.PendingRefresh = null; profile.ProfileIdToken = null;
                     profile.RefreshUncertain = false; profile.Scopes = new(); profile.Status = "disconnected"; profile.SavedAt = Timestamp();
-                    _store.Write(state);
+                    Store.Write(state);
                 }
-                _message = confirmed ? "Signed out of ChatGPT." : "Signed out locally. Remote disconnection could not be confirmed; use Manage usage to disconnect the app in ChatGPT settings.";
+                _message = confirmed ? "Signed out of ChatGPT." : "Signed out locally. Remote disconnection could not be confirmed; copy the usage link to disconnect the app in ChatGPT settings.";
                 _isError = !confirmed;
             }
             if (action == ChatGptConnectionAction.SignIn && (_signIn is null || _signIn.IsCompleted))
             {
-                _message = "Continue in your browser to connect ChatGPT."; _isError = false;
+                _message = "Preparing a secure sign-in link..."; _isError = false; _signInUri = null;
                 _signInCancellation?.Dispose();
                 _signInCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
                 _signInCancellation.CancelAfter(TimeSpan.FromMinutes(10));
                 CancellationToken signInToken = _signInCancellation.Token;
-                _signIn = Task.Run(() => SignInAsync(signInToken), CancellationToken.None);
+                int generation = ++_signInGeneration;
+                _signIn = Task.Run(() => SignInAsync(signInToken, generation), CancellationToken.None);
             }
-            using (var fileLock = await _store.LockAsync(ct))
+            using (var fileLock = await Store.LockAsync(ct))
             {
-                var state = _store.Read();
+                var state = Store.Read();
                 if (action == ChatGptConnectionAction.Welcome && state.Active is { Status: "connected" } active && active.Scopes.Contains(NativeAuthProtocol.PlanScope))
                 {
-                    if (!state.Welcomed.Contains(active.Id)) { state.Welcomed.Add(active.Id); _store.Write(state); }
+                    if (!state.Welcomed.Contains(active.Id)) { state.Welcomed.Add(active.Id); Store.Write(state); }
                     _message = "Using ChatGPT plan"; _isError = false;
                 }
-                return Status(state);
+                return Status(state) with { ClipboardLink = clipboardLink };
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
@@ -108,8 +127,8 @@ public sealed class NativeChatGptSession : IDisposable
         {
             ThrowIfDisposed();
             if (_signIn is { IsCompleted: false }) throw new NativeChatException("sign_in_pending", "Finish ChatGPT sign-in in your browser first.");
-            using var fileLock = await _store.LockAsync(ct);
-            var state = _store.Read(); var profile = state.Active;
+            using var fileLock = await Store.LockAsync(ct);
+            var state = Store.Read(); var profile = state.Active;
             if (profile is null || profile.Status != "connected" || profile.Credentials is null)
                 throw new NativeChatException("not_connected", "Open mod settings and choose Continue with ChatGPT to connect your account.");
             if (!profile.Scopes.Contains(NativeAuthProtocol.PlanScope)) throw new NativeChatException("sharing_not_enabled", "Sign in again and allow ChatGPT plan usage to chat in Terraria.");
@@ -140,19 +159,19 @@ public sealed class NativeChatGptSession : IDisposable
         {
             if (string.IsNullOrEmpty(profile.Credentials?.RefreshToken)) throw new NativeChatException("not_connected", "Your ChatGPT session needs to be renewed. Continue with ChatGPT in mod settings.");
             // Write before consuming a rotating grant. A crash or lost response cannot replay its predecessor.
-            profile.RefreshUncertain = true; _store.Write(state);
+            profile.RefreshUncertain = true; Store.Write(state);
             try
             {
                 using var body = await _protocol.TokenAsync(endpoints, new Dictionary<string, string> {
                     ["grant_type"] = "refresh_token", ["client_id"] = profile.ClientId,
                     ["refresh_token"] = profile.Credentials.RefreshToken, ["resource"] = NativeAuthProtocol.Resource }, ct);
                 profile.PendingRefresh = NativeAuthProtocol.ReadTokens(body.RootElement, profile.Scopes, true);
-                _store.Write(state);
+                Store.Write(state);
             }
             catch (NativeChatException error) when (error.Code == "invalid_grant")
-            { profile.Status = "reauth_required"; profile.Credentials = null; profile.ProfileIdToken = null; profile.RefreshUncertain = false; profile.SavedAt = Timestamp(); _store.Write(state); throw; }
+            { profile.Status = "reauth_required"; profile.Credentials = null; profile.ProfileIdToken = null; profile.RefreshUncertain = false; profile.SavedAt = Timestamp(); Store.Write(state); throw; }
             catch (NativeChatException error) when (error.Code is "auth_rate_limited" or "refresh_not_ready" or "invalid_client")
-            { profile.RefreshUncertain = false; _store.Write(state); throw; }
+            { profile.RefreshUncertain = false; Store.Write(state); throw; }
         }
         var pending = profile.PendingRefresh!;
         if (pending.IdToken is not null)
@@ -162,22 +181,22 @@ public sealed class NativeChatGptSession : IDisposable
             profile.Identity = identity.Identity; profile.ProfileIdToken = pending.IdToken;
         }
         profile.Credentials = pending.Credentials; profile.Scopes = pending.Scopes;
-        profile.PendingRefresh = null; profile.RefreshUncertain = false; profile.SavedAt = Timestamp(); _store.Write(state);
+        profile.PendingRefresh = null; profile.RefreshUncertain = false; profile.SavedAt = Timestamp(); Store.Write(state);
     }
-    private async Task SignInAsync(CancellationToken ct)
+    private async Task SignInAsync(CancellationToken ct, int generation)
     {
         try
         {
-            NativeAuthProfile? previous; string id, clientId, hostId; string? hint; string? tokenHint; bool upgrade;
-            using (var fileLock = await _store.LockAsync(ct))
+            NativeAuthProfile? previous; string id, clientId, hostId; bool upgrade;
+            using (var fileLock = await Store.LockAsync(ct))
             {
-                var state = _store.Read(); previous = state.Active;
+                var state = Store.Read(); previous = state.Active;
                 upgrade = previous?.RequiresNewRegistration == true;
                 var pending = upgrade ? state.PendingRegistrations.FirstOrDefault(p => p.ReplacesProfileId == previous!.Id)
                     : previous is null ? state.PendingRegistrations.FirstOrDefault(p => p.ReplacesProfileId is null) : null;
                 id = !upgrade && previous is not null ? previous.Id : pending?.Id ?? Guid.NewGuid().ToString();
                 clientId = !upgrade && previous is not null ? previous.ClientId : pending?.ClientId ?? "dynamic_agent_client";
-                hostId = state.HostId; hint = previous?.Identity?.Email; tokenHint = upgrade ? null : previous?.ProfileIdToken;
+                hostId = state.HostId;
             }
             var endpoints = await _protocol.DiscoverAsync(ct);
             string nonce = RandomValue(), stateValue = RandomValue(), verifier = RandomValue();
@@ -190,21 +209,33 @@ public sealed class NativeChatGptSession : IDisposable
                 ["ext_agent_host_id"] = hostId };
             if (clientId == "dynamic_agent_client") fields["agent_name_hint"] = "Terraria ChatGPT";
             if (previous is not null && !previous.Scopes.Contains(NativeAuthProtocol.PlanScope)) fields["prompt"] = "consent";
-            if (!string.IsNullOrEmpty(hint)) fields["login_hint"] = hint;
-            if (!string.IsNullOrEmpty(tokenHint)) fields["id_token_hint"] = tokenHint;
+            // This URL is deliberately copied through the system clipboard. Do not add
+            // email/account hints, identity/access tokens, or the secret PKCE verifier.
             Uri authorization = new(endpoints.Authorization.AbsoluteUri + "?" + string.Join('&', fields.Select(pair => Uri.EscapeDataString(pair.Key) + "=" + Uri.EscapeDataString(pair.Value))));
-            // Listener exists before the system browser opens. No browser action occurs on normal game startup.
+            // The listener exists before an explicit Copy sign-in link click can return
+            // the URL. The mod never launches an external browser or process.
             Task<NativeAuthCallbackResult> callbackTask = callback.WaitAsync(stateValue, clientId == "dynamic_agent_client" ? null : clientId, ct);
             try
             {
                 ct.ThrowIfCancellationRequested();
-                await _openBrowser(authorization);
-                var result = await callbackTask;
-                using (var fileLock = await _store.LockAsync(ct))
+                await _gate.WaitAsync(ct);
+                try
                 {
-                    var latest = _store.Read(); EnsureUnchanged(latest, previous);
+                    ct.ThrowIfCancellationRequested();
+                    if (generation != _signInGeneration) return;
+                    _signInUri = authorization;
+                    _message = "Copy the sign-in link, paste it into your browser, then return here.";
+                }
+                finally { _gate.Release(); }
+                var result = await callbackTask;
+                await _gate.WaitAsync(ct);
+                try { if (generation == _signInGeneration) _signInUri = null; }
+                finally { _gate.Release(); }
+                using (var fileLock = await Store.LockAsync(ct))
+                {
+                    var latest = Store.Read(); EnsureUnchanged(latest, previous);
                     if ((previous is null || upgrade) && !latest.PendingRegistrations.Any(p => p.Id == id))
-                    { latest.PendingRegistrations.Add(new() { Id = id, ClientId = result.ClientId, Label = "Connection " + (latest.Profiles.Count + 1), SavedAt = Timestamp(), ReplacesProfileId = upgrade ? previous!.Id : null }); _store.Write(latest); }
+                    { latest.PendingRegistrations.Add(new() { Id = id, ClientId = result.ClientId, Label = "Connection " + (latest.Profiles.Count + 1), SavedAt = Timestamp(), ReplacesProfileId = upgrade ? previous!.Id : null }); Store.Write(latest); }
                 }
                 using var tokens = await _protocol.TokenAsync(endpoints, new Dictionary<string, string> {
                     ["grant_type"] = "authorization_code", ["client_id"] = result.ClientId, ["code"] = result.Code,
@@ -217,13 +248,13 @@ public sealed class NativeChatGptSession : IDisposable
                 try
                 {
                     ct.ThrowIfCancellationRequested();
-                    using var fileLock = await _store.LockAsync(ct);
-                    var latest = _store.Read(); EnsureUnchanged(latest, previous);
+                    using var fileLock = await Store.LockAsync(ct);
+                    var latest = Store.Read(); EnsureUnchanged(latest, previous);
                     var profile = new NativeAuthProfile { Id = id, Label = !upgrade && previous is not null ? previous.Label : "Connection " + (latest.Profiles.Count + 1), ClientId = result.ClientId,
                         Status = "connected", SavedAt = Timestamp(), Subject = identity.Subject, Identity = identity.Identity,
                         ProfileIdToken = received.IdToken, Credentials = received.Credentials.AccessToken.Length == 0 ? null : received.Credentials, Scopes = received.Scopes };
                     latest.Profiles.RemoveAll(p => p.Id == id); latest.Profiles.Add(profile);
-                    latest.PendingRegistrations.RemoveAll(p => p.Id == id); latest.ActiveProfileId = id; _store.Write(latest);
+                    latest.PendingRegistrations.RemoveAll(p => p.Id == id); latest.ActiveProfileId = id; Store.Write(latest);
                     _message = received.Scopes.Contains(NativeAuthProtocol.PlanScope) ? "Using ChatGPT plan" : "Signed in. Allow ChatGPT plan usage to chat in Terraria.";
                     _isError = false;
                 }
@@ -232,12 +263,28 @@ public sealed class NativeChatGptSession : IDisposable
             finally
             {
                 callback.Dispose();
-                // Observe a callback fault even if browser opening fails first.
+                // Observe a callback fault even if link preparation fails first.
                 _ = callbackTask.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
             }
         }
-        catch (OperationCanceledException) { if (!_disposed) { _message = "ChatGPT sign-in was cancelled or timed out. You can try again."; _isError = false; } }
-        catch (Exception error) { if (!_disposed) { _message = SafeMessage(error); _isError = true; } }
+        catch (OperationCanceledException) { await SetSignInFailureAsync(generation, "ChatGPT sign-in was cancelled or timed out. You can try again.", false); }
+        catch (Exception error) { await SetSignInFailureAsync(generation, SafeMessage(error), true); }
+        finally
+        {
+            await _gate.WaitAsync();
+            try { if (generation == _signInGeneration) _signInUri = null; }
+            finally { _gate.Release(); }
+        }
+    }
+    private async Task SetSignInFailureAsync(int generation, string message, bool isError)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (!_disposed && generation == _signInGeneration)
+            { _message = message; _isError = isError; }
+        }
+        finally { _gate.Release(); }
     }
     private static void EnsureUnchanged(NativeAuthState latest, NativeAuthProfile? previous)
     {
@@ -250,7 +297,7 @@ public sealed class NativeChatGptSession : IDisposable
         bool pendingVerification = profile?.PendingRefresh is not null;
         bool interrupted = profile?.RefreshUncertain == true && !pendingVerification;
         bool plan = connected && profile!.Credentials is not null && profile.Scopes.Contains(NativeAuthProtocol.PlanScope) && !pendingVerification && !interrupted;
-        bool signing = _signIn is { IsCompleted: false };
+        bool signing = _signIn is { IsCompleted: false } && _signInCancellation?.IsCancellationRequested == false;
         string label = connected ? profile!.Identity?.Email ?? profile.Identity?.Name ?? profile.Label : "";
         string message = _message.Length != 0 ? _message : connected ? plan ? "Using ChatGPT plan" : "Sign in again and allow ChatGPT plan usage." : "Continue with ChatGPT to connect your account.";
         if (!signing)
@@ -260,7 +307,8 @@ public sealed class NativeChatGptSession : IDisposable
             else if (profile?.Status == "reauth_required") message = "Your ChatGPT session has expired. Continue with ChatGPT to reconnect.";
         }
         return new(connected, signing, new string(label.Where(c => !char.IsControl(c)).Take(120).ToArray()), message, plan,
-            plan && !state.Welcomed.Contains(profile!.Id), _isError || interrupted || profile?.Status == "reauth_required");
+            plan && !state.Welcomed.Contains(profile!.Id), _isError || interrupted || profile?.Status == "reauth_required",
+            signing && _signInUri is not null);
     }
     private static long Earliest(JsonElement value)
     {
@@ -271,16 +319,11 @@ public sealed class NativeChatGptSession : IDisposable
     private static string Timestamp() => DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
     private static string RandomValue() => NativeAuthProtocol.Base64(RandomNumberGenerator.GetBytes(32));
     private static string SafeMessage(Exception error) => error is NativeChatException known ? known.Message : "The ChatGPT connection could not be completed. Your saved credentials have been preserved. Try again.";
-    private static Task OpenBrowserAsync(Uri uri)
-    {
-        try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); return Task.CompletedTask; }
-        catch { throw new NativeChatException("browser_unavailable", "The default browser could not be opened. Check your browser settings and try again."); }
-    }
     private void ThrowIfDisposed() { if (_disposed) throw new ObjectDisposedException(nameof(NativeChatGptSession)); }
     public void Dispose()
     {
         if (_disposed) return;
-        _disposed = true; _signInCancellation?.Cancel(); _lifetime.Cancel();
+        _disposed = true; _signInUri = null; _signInCancellation?.Cancel(); _lifetime.Cancel();
         if (_ownsHttp) _http.Dispose();
         // Semaphores and cancellation sources remain valid until outstanding operations observe cancellation.
     }

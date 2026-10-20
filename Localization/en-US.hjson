@@ -31,7 +31,7 @@ Mods: {
 
 				EnableWebSearch: {
 					Label: Allow live web search
-					Tooltip: Let GPT look things up when helpful. Web answers show small clickable source numbers. Uses the selected provider and never switches billing providers.
+					Tooltip: Let GPT look things up when helpful. Click a source number to copy its link. Uses the selected provider and never switches billing providers.
 				}
 
 				ShareObservedProgress: {
@@ -75,13 +75,17 @@ Mods: {
 			Title: Use your ChatGPT plan
 			Continue: Continue with ChatGPT
 			SignOut: Sign out
-			ManageUsage: Manage usage
+			CopyUsageLink: Copy usage link
+			CopySignInLink: Copy sign-in link
+			CancelSignIn: Cancel sign-in
+			LinkCopied: Link copied. Paste it into your browser, then return to Terraria.
+			CopyFailed: Could not copy the link. Try again.
 			UsingPlan: Using ChatGPT plan
 			Connected: ChatGPT account connected
 			NotConnected: ChatGPT account not connected
 			SigningIn: Finish signing in through your browser
 			PlanNotice: Eligible requests use your ChatGPT plan allowance or credits balance.
-			BrowserNotice: Continue opens OpenAI's sign-in page in your browser.
+			BrowserNotice: Choose Continue, then copy the sign-in link and paste it into your browser.
 			Ready: Select ChatGPT plan as the answer provider to use this connection.
 			NoFallback: The mod never switches to separately billed API usage automatically.
 			WelcomeTitle: You're using your ChatGPT plan
@@ -101,7 +105,7 @@ Mods: {
 			Cleared: API key cleared. Your ChatGPT connection is unchanged.
 			InvalidKey: Enter a valid API key (20-512 characters, without spaces).
 			PasteFailed: Could not read the clipboard. Try typing your key instead.
-			SaveFailed: Could not save the key. Check access to your Documents folder.
+			SaveFailed: Could not save the key. Check access to your tModLoader save folder.
 			UsageNotice: OpenAI API usage is billed separately. The connection runs inside tModLoader.
 		}
 	}

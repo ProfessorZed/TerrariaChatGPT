@@ -23,3 +23,9 @@ storage locations and the authentication protocol remain compatible.
 Terraria ChatGPT 0.9.1 (2026-10-19): corrected the C# namespace to match the
 tModLoader mod identifier. Legacy storage paths and saved-data identifiers are
 unchanged.
+
+Terraria ChatGPT 0.9.2 (2026-10-20): moved runtime credential storage into the
+active tModLoader save directory; removed legacy external-file imports and
+native migration-directory locks; replaced browser process launching with
+explicit copy-link sign-in without identity/email hints; strengthened storage
+permissions, path checks, and authentication regression coverage.

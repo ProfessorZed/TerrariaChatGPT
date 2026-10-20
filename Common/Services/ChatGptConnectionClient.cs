@@ -6,11 +6,12 @@ using TerrariaChatGPT.Common.Native;
 
 namespace TerrariaChatGPT.Common.Services;
 
-public enum ChatGptConnectionAction { Status, SignIn, SignOut, Welcome, ManageUsage }
+public enum ChatGptConnectionAction { Status, SignIn, SignOut, Welcome, CopyUsageLink, CopySignInLink, CancelSignIn }
 
-/// <summary>The settings UI sees display-safe status, never authentication credentials.</summary>
+/// <summary>The UI sees display-safe status. An explicit copy action alone returns a credential-free link.</summary>
 public sealed record ChatGptConnectionStatus(bool Connected, bool SigningIn, string Account,
-    string Message, bool UsingPlan, bool WelcomePending, bool IsError = false);
+    string Message, bool UsingPlan, bool WelcomePending, bool IsError = false,
+    bool CanCopySignInLink = false, string ClipboardLink = "");
 
 public static class ChatGptConnectionClient
 {

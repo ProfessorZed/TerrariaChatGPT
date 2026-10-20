@@ -5,7 +5,10 @@
 Chat with ChatGPT while playing Terraria. Ask questions, look things up online,
 and pin goals that follow your progress—all inside tModLoader.
 
-**Version 0.9.1 · Windows · Client-side tModLoader mod**
+**Version 0.9.2 · Windows · Client-side tModLoader mod**
+
+The Steam Workshop build is currently **private pending moderator review**.
+GitHub releases are available for manual installation.
 
 This is an unofficial community project by
 [ProfessorZed](https://github.com/ProfessorZed), not a product of Re-Logic or
@@ -17,7 +20,7 @@ ChatGPT connection code.
 
 - Adds separate **Terraria / GPT** chat tabs, with independent drafts.
 - Gives conversational answers, remembers recent follow-ups, and supports live
-  web search with small clickable source markers.
+  web search with small source markers that copy the source link when clicked.
 - Highlights items in **cyan**, locations in **gold**, observed supplies in
   **green**, and missing quantities in **orange**.
 - Offers **Set goal?** buttons for up to six draggable, collapsible goal notes.
@@ -40,20 +43,27 @@ OpenAI API account. Goal notes continue tracking locally while offline.
    `Documents\My Games\Terraria\tModLoader\Mods`.
 2. Open tModLoader and enable **Terraria ChatGPT** under **Workshop → Manage Mods**.
 3. Open **Settings → Mod Configuration → GPT**. Choose **ChatGPT plan** as the
-   answer provider, select **Continue with ChatGPT**, and finish sign-in in your
-   browser. Return to the game and acknowledge **Got it**.
+   answer provider and select **Continue with ChatGPT**. Select **Copy sign-in
+   link**, paste it into your browser's address bar, and finish sign-in. Return
+   to the game and acknowledge **Got it**. The mod does not launch a browser.
 4. Enter a world, press **Enter**, and select the **GPT** tab. **Tab** switches
    between Terraria and GPT chat.
 
 The mod restores your saved connection when tModLoader starts. Reconnect if your
-account authorization expires or is revoked. **Manage usage** opens ChatGPT's
-usage settings. Account eligibility, available models, search support, and usage
+account authorization expires or is revoked. **Copy usage link** copies the link
+to ChatGPT's usage settings. Account eligibility, available models, search support, and usage
 limits depend on the connected account and service.
 
 The **OpenAI API** option is separately billed and requires an API key. Enter its
 key in the masked mod setting and explicitly choose that provider to use it.
 The mod never switches from your ChatGPT plan to API billing automatically.
 **Wiki only** is an optional reference mode that needs no AI account.
+
+When upgrading an earlier native build, use **Install Mod.cmd** from the matching
+source release after building. It copies the existing encrypted login into
+`TerrariaChatGPT` inside your active tModLoader save directory, without decrypting
+it or overwriting a newer login. Pass `-SaveDirectory` for custom saves. A bare
+`.tmod` replacement cannot import files outside tModLoader's save directory.
 
 Try asking:
 
@@ -105,7 +115,7 @@ library or save location:
 
 ```powershell
 .\tools\Build.ps1 -TmlPath 'D:\SteamLibrary\steamapps\common\tModLoader'
-.\tools\InstallMod.ps1 -SaveDirectory 'D:\TerrariaSaves'
+.\tools\InstallNativeUpdate.ps1 -SaveDirectory 'D:\TerrariaSaves'
 ```
 
 The current native credential storage requires Windows. Linux and macOS online
@@ -119,6 +129,9 @@ Run each script in a fresh process, for example:
 
 ```powershell
 pwsh -NoProfile -File .\tools\TestNativeAuth.ps1
+pwsh -NoProfile -File .\tools\TestCredentialStorage.ps1
+pwsh -NoProfile -File .\tools\TestCredentialMigration.ps1
+pwsh -NoProfile -File .\tools\TestReleaseSafety.ps1
 pwsh -NoProfile -File .\tools\TestNativeResponses.ps1
 pwsh -NoProfile -File .\tools\TestNativeReply.ps1
 pwsh -NoProfile -File .\tools\TestAssistantService.ps1
@@ -133,7 +146,7 @@ the saved ChatGPT connection and its allowance. Do not run it as part of an
 unattended source build. [Manual acceptance checks](docs/ACCEPTANCE.md) describe
 in-game verification; they are not a claim that every scenario has been tested.
 
-See the [changelog](CHANGELOG.md), [publishing guide](docs/PUBLISHING.md), or
+See the [changelog](CHANGELOG.md), [security notes](docs/SECURITY.md), [publishing guide](docs/PUBLISHING.md), or
 [report an issue](https://github.com/ProfessorZed/TerrariaChatGPT/issues). Remove
 credentials, account information, and private chat text from any attached logs.
 

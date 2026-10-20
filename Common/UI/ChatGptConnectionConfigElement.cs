@@ -14,6 +14,7 @@ using Terraria.ModLoader.Config.UI;
 using Terraria.UI;
 using TerrariaChatGPT.Common.Config;
 using TerrariaChatGPT.Common.Services;
+using ReLogic.OS;
 
 namespace TerrariaChatGPT.Common.UI;
 
@@ -27,6 +28,8 @@ public sealed class ChatGptConnectionConfigElement : ConfigElement
     private DateTimeOffset _nextPoll;
     private WelcomeOverlay? _welcome;
     private bool _registered;
+    private string _copyNotice = "";
+    private DateTimeOffset _copyNoticeUntil;
 
     public override void OnBind()
     {
@@ -63,7 +66,16 @@ public sealed class ChatGptConnectionConfigElement : ConfigElement
         if (_pending is { IsCompleted: true })
         {
             if (_pending.IsCompletedSuccessfully)
-                _status = _pending.Result;
+            {
+                var result = _pending.Result;
+                _status = result with { ClipboardLink = "" };
+                if (result.ClipboardLink.Length != 0)
+                {
+                    try { Platform.Get<IClipboard>().Value = result.ClipboardLink; _copyNotice = Text("LinkCopied"); }
+                    catch { _copyNotice = Text("CopyFailed"); }
+                    _copyNoticeUntil = DateTimeOffset.UtcNow.AddSeconds(6);
+                }
+            }
             _pending = null;
             _nextPoll = DateTimeOffset.UtcNow.AddSeconds(_status.SigningIn ? 1 : 4);
         }
@@ -82,13 +94,15 @@ public sealed class ChatGptConnectionConfigElement : ConfigElement
         Rectangle[] buttons = ButtonRectangles();
         if (buttons[0].Contains(mouse))
         {
-            if (_status.Connected)
+            if (_status.SigningIn && _status.CanCopySignInLink)
+                Request(ChatGptConnectionAction.CopySignInLink);
+            else if (_status.Connected && !_status.SigningIn)
                 Request(ChatGptConnectionAction.SignOut);
             else if (!_status.SigningIn)
                 Request(ChatGptConnectionAction.SignIn);
         }
         else if (buttons[1].Contains(mouse))
-            Request(ChatGptConnectionAction.ManageUsage);
+            Request(_status.SigningIn ? ChatGptConnectionAction.CancelSignIn : ChatGptConnectionAction.CopyUsageLink);
     }
 
     protected override void DrawSelf(SpriteBatch spriteBatch)
@@ -104,10 +118,11 @@ public sealed class ChatGptConnectionConfigElement : ConfigElement
         DrawText(spriteBatch, Text("PlanNotice"), new Vector2(area.X + 10, area.Y + 56), new Color(192, 201, 216), 0.6f, area.Width - 20);
 
         Rectangle[] buttons = ButtonRectangles();
-        DrawButton(spriteBatch, buttons[0], _status.Connected ? Text("SignOut") : Text("Continue"),
-            _pending is null && !_status.SigningIn, true);
-        DrawButton(spriteBatch, buttons[1], Text("ManageUsage"), _pending is null, false);
-        string message = _status.Message.Length > 0 ? _status.Message : Text(_status.Connected ? "Ready" : "BrowserNotice");
+        DrawButton(spriteBatch, buttons[0], _status.SigningIn ? Text("CopySignInLink") : _status.Connected ? Text("SignOut") : Text("Continue"),
+            _pending is null && (!_status.SigningIn || _status.CanCopySignInLink), true);
+        DrawButton(spriteBatch, buttons[1], Text(_status.SigningIn ? "CancelSignIn" : "CopyUsageLink"), _pending is null, false);
+        string message = DateTimeOffset.UtcNow < _copyNoticeUntil ? _copyNotice
+            : _status.Message.Length > 0 ? _status.Message : Text(_status.Connected ? "Ready" : "BrowserNotice");
         DrawText(spriteBatch, message, new Vector2(area.X + 10, area.Y + 123),
             _status.IsError ? new Color(255, 183, 165) : new Color(193, 209, 221), 0.58f, area.Width - 20);
         DrawText(spriteBatch, Text("NoFallback"), new Vector2(area.X + 10, area.Y + 145), new Color(192, 201, 216), 0.57f, area.Width - 20);

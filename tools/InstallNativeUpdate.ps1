@@ -10,6 +10,9 @@ if ($running.Count -gt 0) { throw 'tModLoader is still running. Save and exit it
 $staged = Join-Path $taskRoot 'dist\TerrariaChatGPT.tmod'
 $package = Get-TerrariaGptPackageInfo -Path $staged
 if ($package.Name -ne 'TerrariaChatGPT') { throw 'Expected the Terraria ChatGPT package.' }
+$versionLine = Get-Content -LiteralPath (Join-Path $taskRoot 'build.txt') | Where-Object { $_ -match '^version\s*=\s*' } | Select-Object -First 1
+if ($package.Version -ne ($versionLine -split '=', 2)[1].Trim()) { throw 'Build the current release before installing.' }
+$migration = & (Join-Path $PSScriptRoot 'MigrateCredentialStorage.ps1') -SaveDirectory $SaveDirectory
 & (Join-Path $PSScriptRoot 'InstallMod.ps1') -SaveDirectory $SaveDirectory
 $installed = Join-Path ([IO.Path]::GetFullPath($SaveDirectory)) 'Mods\TerrariaChatGPT.tmod'
 $enabledPath = Join-Path ([IO.Path]::GetFullPath($SaveDirectory)) 'Mods\enabled.json'
@@ -24,4 +27,5 @@ if (Test-Path -LiteralPath $enabledPath) {
     Enabled = $enabled
     RequiresCompanion = $false
     GameLaunched = $false
+    CredentialMigration = $migration
 } | ConvertTo-Json
