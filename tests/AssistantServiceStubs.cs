@@ -44,6 +44,8 @@ namespace TerrariaChatGPT.Common.Config
         public bool EnableWebSearch = true, ShareObservedProgress = true;
         public int BridgePort;
         public GptProvider Provider = GptProvider.ChatGPT;
+        public string ChatGptModel = "";
+        public string ChatGptEffort = "";
     }
 }
 namespace TerrariaChatGPT.Common.Players

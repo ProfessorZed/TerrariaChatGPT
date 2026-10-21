@@ -5,10 +5,10 @@
 Chat with ChatGPT while playing Terraria. Ask questions, look things up online,
 and pin goals that follow your progress—all inside tModLoader.
 
-**Version 0.9.2 · Windows · Client-side tModLoader mod**
+**Version 0.9.4 · Windows · Client-side tModLoader mod**
 
-The Steam Workshop build is currently **private pending moderator review**.
-GitHub releases are available for manual installation.
+[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3822943933)
+· [GitHub releases](https://github.com/ProfessorZed/TerrariaChatGPT/releases)
 
 This is an unofficial community project by
 [ProfessorZed](https://github.com/ProfessorZed), not a product of Re-Logic or
@@ -19,6 +19,10 @@ ChatGPT connection code.
 ## What it does
 
 - Adds separate **Terraria / GPT** chat tabs, with independent drafts.
+- Lets you switch model and reasoning effort directly in GPT chat. Choices are
+  saved immediately and apply to the next question without clearing the conversation.
+- Shows a silent, fading reply preview while GPT chat is closed, with an unread
+  `*` until you open GPT. Notifications never take input focus or intercept clicks.
 - Gives conversational answers, remembers recent follow-ups, and supports live
   web search with small source markers that copy the source link when clicked.
 - Highlights items in **cyan**, locations in **gold**, observed supplies in
@@ -36,7 +40,7 @@ OpenAI API account. Goal notes continue tracking locally while offline.
 
 ## Install and connect
 
-1. Use the published Workshop version when available, or download
+1. Subscribe on the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3822943933), or download
    `TerrariaChatGPT.tmod` from this repository's
    [releases](https://github.com/ProfessorZed/TerrariaChatGPT/releases).
    With tModLoader closed, place it in
@@ -53,6 +57,22 @@ The mod restores your saved connection when tModLoader starts. Reconnect if your
 account authorization expires or is revoked. **Copy usage link** copies the link
 to ChatGPT's usage settings. Account eligibility, available models, search support, and usage
 limits depend on the connected account and service.
+
+To choose a model or effort, use the **Model** and **Effort** buttons at the top
+of GPT chat. Opening a picker loads your account's available choices; **Refresh**
+updates the list. Changes save immediately. The same choices are available under
+**Mod Configuration → GPT**, where you use **Save Config** after selecting them.
+**Auto** model uses the first available model; **Auto** effort lets the service
+choose its default. An unavailable model produces a message asking you to choose
+another; the mod does not silently use a different one. When switching models in
+chat, an unsupported effort resets to Auto with a visible notice.
+
+Effort controls how much reasoning the model uses: **Fast**, **Balanced**,
+**Thorough**, **Extra thorough**, and **Maximum**, where supported. **Instant**
+is offered only if the account's model supports no-reasoning requests. These names
+describe reasoning preferences, not guaranteed response times or priority service.
+Higher effort can take longer and use more plan allowance. Model and effort
+selectors apply to ChatGPT plan mode only.
 
 The **OpenAI API** option is separately billed and requires an API key. Enter its
 key in the masked mod setting and explicitly choose that provider to use it.
@@ -138,6 +158,12 @@ pwsh -NoProfile -File .\tools\TestAssistantService.ps1
 pwsh -NoProfile -File .\tools\TestChatLayout.ps1
 pwsh -NoProfile -File .\tools\TestGoalProgress.ps1
 pwsh -NoProfile -File .\tools\TestChatFeatures.ps1
+pwsh -NoProfile -File .\tools\TestModelSelector.ps1
+pwsh -NoProfile -File .\tools\TestEffortSelector.ps1
+pwsh -NoProfile -File .\tools\TestChatToolbar.ps1
+pwsh -NoProfile -File .\tools\TestChatToolbarInput.ps1
+pwsh -NoProfile -File .\tools\TestChatPreferences.ps1
+pwsh -NoProfile -File .\tools\TestReplyNotifications.ps1
 ```
 
 Authentication checks use synthetic credentials and a local callback listener.

@@ -23,6 +23,7 @@ public sealed record ChatEntry(string Role, string Text, DateTimeOffset Timestam
     public IReadOnlyList<WebCitation> Citations { get; init; } = Array.Empty<WebCitation>();
     public bool WebSearched { get; init; }
     public GoalProposal? GoalSuggestion { get; init; }
+    public bool NotifiesReply { get; init; }
 }
 
 /// <summary>UI/game-thread controller. Only explicitly projected observations leave the game thread.</summary>
@@ -172,9 +173,11 @@ public static class GptAssistantService
         // All game reads and option snapshots are finished before leaving this thread.
         GptProvider provider = config.Provider;
         bool webSearch = config.EnableWebSearch;
+        string chatGptModel = config.ChatGptModel ?? string.Empty;
+        string chatGptEffort = config.ChatGptEffort ?? string.Empty;
         CancellationToken cancellation = _cancellation.Token;
         _ = Task.Run(() => AskAsync(question, snapshot, conversation, provider, epoch, cancellation, chatOnly,
-            webSearch, observedContext), cancellation);
+            webSearch, observedContext, chatGptModel, chatGptEffort), cancellation);
     }
 
     public static void Pump()
@@ -184,7 +187,7 @@ public static class GptAssistantService
         {
             if (response.Epoch != _epoch) continue;
             IsBusy = false;
-            Add("GPT", response.Text, response.Highlights, response.Citations, response.WebSearched, response.GoalSuggestion);
+            Add("GPT", response.Text, response.Highlights, response.Citations, response.WebSearched, response.GoalSuggestion, notifiesReply: true);
             if (response.ChatOnly)
             {
                 if (response.Question is not null)
@@ -253,12 +256,12 @@ public static class GptAssistantService
     }
 
     private static async Task AskAsync(string question, KnowledgeSnapshot snapshot, IReadOnlyList<ConversationTurn> conversation,
-        GptProvider provider, int epoch, CancellationToken cancellation, bool chatOnly, bool webSearch, object? observedContext)
+        GptProvider provider, int epoch, CancellationToken cancellation, bool chatOnly, bool webSearch, object? observedContext, string chatGptModel, string chatGptEffort)
     {
         try
         {
             NativeChatReply reply = await NativeAssistantRuntime.AskAsync(question, snapshot, conversation, provider,
-                webSearch, observedContext, cancellation).ConfigureAwait(false);
+                webSearch, observedContext, cancellation, chatGptModel, chatGptEffort).ConfigureAwait(false);
             cancellation.ThrowIfCancellationRequested();
             string answer = AnswerFormatting.Clean(reply.Answer, reply.Citations.Select(source => source.Index));
             IReadOnlyList<WebCitation> citations = reply.Citations.Where(source => answer.Contains("[" + source.Index + "]", StringComparison.Ordinal)).ToArray();
@@ -301,7 +304,7 @@ public static class GptAssistantService
             citations ?? Array.Empty<WebCitation>(), searched, goalSuggestion));
 
     private static void Add(string role, string text, IReadOnlyList<AnswerHighlight>? highlights = null,
-        IReadOnlyList<WebCitation>? citations = null, bool searched = false, GoalProposal? goalSuggestion = null)
+        IReadOnlyList<WebCitation>? citations = null, bool searched = false, GoalProposal? goalSuggestion = null, bool notifiesReply = false)
     {
         // Draw as literal text in the UI; assistant output is never parsed as commands.
         bool user = role == "You";
@@ -314,7 +317,8 @@ public static class GptAssistantService
             Highlights = user ? Array.Empty<AnswerHighlight>() : AnswerFormatting.Validate(display, highlights),
             Citations = user ? Array.Empty<WebCitation>() : citations,
             WebSearched = !user && searched,
-            GoalSuggestion = user ? null : goalSuggestion
+            GoalSuggestion = user ? null : goalSuggestion,
+            NotifiesReply = !user && notifiesReply
         });
         if (History.Count > 100) History.RemoveAt(0);
     }

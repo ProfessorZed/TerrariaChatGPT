@@ -19,7 +19,7 @@ namespace TerrariaChatGPT.Common.UI;
 internal readonly record struct GptChatLayout(
     Rectangle Panel, Rectangle Transcript, Rectangle Input,
     Rectangle TerrariaTab, Rectangle GptTab, Rectangle ConnectionBadge,
-    Rectangle ManageUsage, Rectangle CopyAnswer);
+    Rectangle ManageUsage, Rectangle CopyAnswer, Rectangle ModelSelector, Rectangle EffortSelector);
 
 /// <summary>Literal glyph rendering: remote text never becomes Terraria chat tags.</summary>
 internal sealed class GptChatPanel
@@ -59,7 +59,8 @@ internal sealed class GptChatPanel
             config.ChatPanelWidth, config.ChatPanelHeight);
         return new(ToRectangle(geometry.Panel), ToRectangle(geometry.Transcript), ToRectangle(geometry.Input),
             ToRectangle(geometry.TerrariaTab), ToRectangle(geometry.GptTab), ToRectangle(geometry.ConnectionBadge),
-            ToRectangle(geometry.ManageUsage), ToRectangle(geometry.CopyAnswer));
+            ToRectangle(geometry.ManageUsage), ToRectangle(geometry.CopyAnswer),
+            ToRectangle(geometry.ModelSelector), ToRectangle(geometry.EffortSelector));
     }
 
     public void Reset()
@@ -104,7 +105,7 @@ internal sealed class GptChatPanel
 
     public void Draw(SpriteBatch spriteBatch, string question,
         IReadOnlyList<ChatEntry> messages, bool busy, GptProvider provider,
-        ChatGptConnectionStatus connection, bool checkingConnection, string copyStatus = "")
+        ChatGptConnectionStatus connection, bool checkingConnection, string copyStatus = "", string toolbarStatus = "")
     {
         GptChatLayout layout = GetLayout();
         _actionLayout = layout;
@@ -119,7 +120,7 @@ internal sealed class GptChatPanel
             DrawClippedText(spriteBatch, "GPT", new Vector2(layout.Panel.X + 14, layout.Panel.Y + 9),
                 new Color(155, 245, 211), 0.95f, layout.Panel);
             if (layout.Panel.Width >= 450)
-                DrawClippedText(spriteBatch, "Your Terraria companion",
+                DrawClippedText(spriteBatch, toolbarStatus.Length > 0 ? toolbarStatus : "Your Terraria companion",
                     new Vector2(layout.Panel.X + 65, layout.Panel.Y + 12), MutedTextColor, 0.70f,
                     new Rectangle(layout.Panel.X + 65, layout.Panel.Y + 7, Math.Max(0, layout.Panel.Width - 180), 30));
             bool canCopy = false;
@@ -158,7 +159,7 @@ internal sealed class GptChatPanel
         if (layout.Panel.Height >= 85)
         {
             string hint = Main.GameUpdateCount < _actionStatusUntil && _actionStatus.Length > 0
-                ? _actionStatus : _scrollFromBottom > 0
+                ? _actionStatus : toolbarStatus.Length > 0 ? toolbarStatus : _scrollFromBottom > 0
                 ? "More below · Scroll / PgDn · End for latest"
                 : "Enter send · Tab switch · ↑↓ recent questions · Esc close";
             DrawClippedText(spriteBatch, HeadToFit(hint, layout.Transcript.Width, 0.60f),
@@ -186,10 +187,10 @@ internal sealed class GptChatPanel
         DrawSourceTooltip(spriteBatch);
     }
 
-    public void DrawTabs(SpriteBatch spriteBatch, GptChatLayout layout, bool gptSelected)
+    public void DrawTabs(SpriteBatch spriteBatch, GptChatLayout layout, bool gptSelected, bool unread = false)
     {
         DrawTab(spriteBatch, layout.TerrariaTab, "Terraria", !gptSelected);
-        DrawTab(spriteBatch, layout.GptTab, "GPT", gptSelected);
+        DrawTab(spriteBatch, layout.GptTab, unread && !gptSelected ? "GPT *" : "GPT", gptSelected);
     }
 
     private static void DrawConnection(SpriteBatch spriteBatch, GptChatLayout layout, GptProvider provider,
@@ -462,9 +463,12 @@ internal sealed class GptChatPanel
         if (inner.Width > 0 && inner.Height > 0) spriteBatch.Draw(pixel, inner, fill);
     }
 
-    internal static void DrawClippedText(SpriteBatch batch, string text, Vector2 position, Color color, float scale, Rectangle clip)
+    internal static void DrawClippedText(SpriteBatch batch, string text, Vector2 position, Color color, float scale, Rectangle clip, float opacity = 1)
     {
         if (clip.Width <= 0 || clip.Height <= 0 || text.Length == 0) return;
+        opacity = float.IsFinite(opacity) ? Math.Clamp(opacity, 0, 1) : 0;
+        if (opacity <= 0) return;
+        color *= opacity;
         DynamicSpriteFont font = FontAssets.MouseText.Value;
         float pen = 0;
         bool first = true;
@@ -476,7 +480,7 @@ internal sealed class GptChatPanel
             Vector2 glyphPosition = position + new Vector2((pen + data.Padding.X) * scale, data.Padding.Y * scale);
             if (data.Glyph.Width > 0 && data.Glyph.Height > 0)
             {
-                Color shadow = new(0, 0, 0, 185);
+                Color shadow = new Color(0, 0, 0, 185) * opacity;
                 DrawGlyph(batch, data, glyphPosition + new Vector2(-1, 0), shadow, scale, clip);
                 DrawGlyph(batch, data, glyphPosition + new Vector2(1, 0), shadow, scale, clip);
                 DrawGlyph(batch, data, glyphPosition + new Vector2(0, -1), shadow, scale, clip);

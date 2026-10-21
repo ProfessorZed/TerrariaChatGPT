@@ -17,7 +17,8 @@ internal static class ChatScrollPosition
 }
 
 internal readonly record struct ChatPanelGeometry(ChatRect Panel, ChatRect Transcript, ChatRect Input,
-    ChatRect TerrariaTab, ChatRect GptTab, ChatRect ConnectionBadge, ChatRect ManageUsage, ChatRect CopyAnswer)
+    ChatRect TerrariaTab, ChatRect GptTab, ChatRect ConnectionBadge, ChatRect ManageUsage, ChatRect CopyAnswer,
+    ChatRect ModelSelector, ChatRect EffortSelector)
 {
     public static ChatPanelGeometry Calculate(int screenWidth, int screenHeight, int preferredWidth, int preferredHeight)
     {
@@ -39,7 +40,8 @@ internal readonly record struct ChatPanelGeometry(ChatRect Panel, ChatRect Trans
         int tabGap = Math.Min(4, Math.Max(0, input.Bottom - 2 * tabHeight));
         int tabsY = Math.Max(0, input.Bottom - tabHeight * 2 - tabGap);
         int padding = Math.Min(14, width / 5);
-        int header = Math.Min(44, height / 3);
+        bool toolbarFits = width >= 220 && height >= 200;
+        int header = toolbarFits ? 78 : Math.Min(44, height / 3);
         int footer = height >= 130 ? 58 : height >= 85 ? 46 : 0;
         int transcriptWidth = Math.Max(0, width - 2 * padding - 7);
         ChatRect transcript = new(panel.X + padding, panel.Y + header,
@@ -49,8 +51,12 @@ internal readonly record struct ChatPanelGeometry(ChatRect Panel, ChatRect Trans
         ChatRect copy = buttonsFit ? new(panel.Right - 100, panel.Y + 9, 86, 24) : default;
         ChatRect connection = height >= 85 ? new(panel.X + padding, panel.Bottom - 46,
             Math.Max(0, width - 2 * padding - (buttonsFit ? 124 : 0)), 20) : default;
+        int toolbarWidth = Math.Max(0, width - 2 * padding);
+        int modelWidth = (toolbarWidth - 8) * 3 / 5;
+        ChatRect model = toolbarFits ? new(panel.X + padding, panel.Y + 41, modelWidth, 27) : default;
+        ChatRect effort = toolbarFits ? new(model.Right + 8, model.Y, toolbarWidth - modelWidth - 8, 27) : default;
         return new(panel, transcript, input,
             new(tabX, tabsY, tabWidth, tabHeight),
-            new(tabX, tabsY + tabHeight + tabGap, tabWidth, tabHeight), connection, usage, copy);
+            new(tabX, tabsY + tabHeight + tabGap, tabWidth, tabHeight), connection, usage, copy, model, effort);
     }
 }

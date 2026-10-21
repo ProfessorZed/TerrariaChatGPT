@@ -33,7 +33,7 @@ public sealed class NativeResponsesClient : IDisposable
     private readonly SemaphoreSlim _catalogGate = new(1, 1);
     private readonly object _cacheLock = new();
     private string? _cachedTokenHash;
-    private string? _cachedModel;
+    private IReadOnlyList<ChatGptModelOption>? _cachedModels;
     private DateTimeOffset _catalogTime;
     private int _cacheGeneration;
     public string SelectedModel { get; private set; } = "";
@@ -51,26 +51,30 @@ public sealed class NativeResponsesClient : IDisposable
         {
             _cacheGeneration++;
             _cachedTokenHash = null;
-            _cachedModel = null;
+            _cachedModels = null;
             SelectedModel = "";
         }
     }
 
     public async Task<NativeChatReply> AskAsync(string question, IReadOnlyList<ConversationTurn> conversation,
         string gameVersion, object? observedContext, bool webSearch, string bearerToken, bool useChatGptPlan,
-        CancellationToken cancellation, string apiModel = "gpt-4o-mini")
+        CancellationToken cancellation, string apiModel = "gpt-4o-mini", string chatGptModel = "", string chatGptEffort = "")
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        deadline.CancelAfter(TimeSpan.FromSeconds(webSearch ? 120 : 75));
+        deadline.CancelAfter(TimeSpan.FromSeconds(ChatGptEffortOptions.InferenceTimeoutSeconds(useChatGptPlan ? chatGptEffort : "", webSearch)));
         CancellationToken signal = deadline.Token;
         try
         {
             signal.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(bearerToken) || bearerToken.Length > 32768 || bearerToken.Any(char.IsControl))
-                throw new NativeChatException("not_connected", "Connect your selected account in mod settings, then try again.");
+            ValidateBearer(bearerToken);
             // Validate the detached data before touching the network.
             object[] input = NativeChatPrompt.BuildInput(question, conversation, gameVersion, observedContext);
-            string model = useChatGptPlan ? await ModelAsync(bearerToken, signal).ConfigureAwait(false) : ValidateApiModel(apiModel);
+            if (useChatGptPlan && chatGptEffort != "" && !ChatGptEffortOptions.IsKnown(chatGptEffort))
+                throw new NativeChatException("invalid_effort", "Choose a supported effort in GPT chat, or choose Auto.");
+            ChatGptModelOption? selected = useChatGptPlan ? await ModelAsync(bearerToken, chatGptModel, signal).ConfigureAwait(false) : null;
+            if (selected != null && chatGptEffort != "" && !selected.SupportedReasoningEfforts.Contains(chatGptEffort, StringComparer.Ordinal))
+                throw new NativeChatException("effort_unavailable", "Your selected effort is unavailable for this model. Open the effort selector in GPT chat and choose a supported level or Auto.");
+            string model = selected?.Slug ?? ValidateApiModel(apiModel);
             var payload = new Dictionary<string, object>
             {
                 ["model"] = model, ["store"] = false, ["stream"] = true,
@@ -78,6 +82,7 @@ public sealed class NativeResponsesClient : IDisposable
             };
             // Plan usage explicitly forbids this API-only field.
             if (!useChatGptPlan) payload["max_output_tokens"] = 2400;
+            if (useChatGptPlan && chatGptEffort != "") payload["reasoning"] = new { effort = chatGptEffort };
             if (webSearch)
             {
                 payload["tools"] = new[] { new { type = "web_search", external_web_access = true } };
@@ -122,7 +127,50 @@ public sealed class NativeResponsesClient : IDisposable
         return request;
     }
 
-    private async Task<string> ModelAsync(string token, CancellationToken signal)
+    public async Task<IReadOnlyList<ChatGptModelOption>> GetModelsAsync(string bearerToken,
+        CancellationToken cancellation, bool forceRefresh = false)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        try
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            ValidateBearer(bearerToken);
+            return await CatalogAsync(bearerToken, deadline.Token, forceRefresh).ConfigureAwait(false);
+        }
+        catch (NativeChatException) { throw; }
+        catch (OperationCanceledException)
+        {
+            throw new NativeChatException(cancellation.IsCancellationRequested ? "cancelled" : "timeout",
+                cancellation.IsCancellationRequested ? "The model list request was cancelled." : "The model list took too long. Refresh it to try again.");
+        }
+        catch (JsonException) { throw InvalidCatalog(); }
+        catch (DecoderFallbackException) { throw InvalidCatalog(); }
+        catch (HttpRequestException) { throw new NativeChatException("network_error", "Could not load ChatGPT models. Check your internet connection and refresh the list."); }
+        catch (IOException) { throw new NativeChatException("network_error", "The model list connection ended early. Refresh the list to try again."); }
+        catch (Exception) { throw new NativeChatException("model_catalog_failed", "Could not load ChatGPT models. Refresh the list to try again."); }
+    }
+
+    private async Task<ChatGptModelOption> ModelAsync(string token, string requestedModel, CancellationToken signal)
+    {
+        if (requestedModel != "" && !SafeModel(requestedModel))
+            throw new NativeChatException("invalid_model", "Choose a model in GPT chat, or choose Auto.");
+        IReadOnlyList<ChatGptModelOption> models = await GetModelsAsync(token, signal).ConfigureAwait(false);
+        ChatGptModelOption? selected = requestedModel == "" ? models[0]
+            : models.FirstOrDefault(model => model.Slug == requestedModel);
+        if (selected == null)
+            throw new NativeChatException("model_unavailable", "Your selected ChatGPT model is no longer available for this account. Refresh the model list in GPT chat and choose another model or Auto.");
+        signal.ThrowIfCancellationRequested();
+        lock (_cacheLock)
+        {
+            if (!ReferenceEquals(_cachedModels, models))
+                throw new NativeChatException("model_catalog_changed", "The ChatGPT connection changed. Refresh the model list to try again.");
+            SelectedModel = selected.DisplayName;
+        }
+        return selected;
+    }
+
+    private async Task<IReadOnlyList<ChatGptModelOption>> CatalogAsync(string token, CancellationToken signal, bool forceRefresh)
     {
         // Only a one-way digest is retained, never the bearer credential. Token
         // rotation and account changes force an account-specific catalog refresh.
@@ -133,8 +181,8 @@ public sealed class NativeResponsesClient : IDisposable
             int generation;
             lock (_cacheLock)
             {
-                if (_cachedTokenHash == tokenHash && _cachedModel != null && DateTimeOffset.UtcNow - _catalogTime < TimeSpan.FromMinutes(5))
-                    return _cachedModel;
+                if (!forceRefresh && _cachedTokenHash == tokenHash && _cachedModels != null && DateTimeOffset.UtcNow - _catalogTime < TimeSpan.FromMinutes(5))
+                    return _cachedModels;
                 generation = _cacheGeneration;
             }
             using var request = Request(HttpMethod.Get, "models", token);
@@ -145,29 +193,61 @@ public sealed class NativeResponsesClient : IDisposable
             using JsonDocument json = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = 32 });
             if (!Try(json.RootElement, "models", out JsonElement models) || models.ValueKind != JsonValueKind.Array || models.GetArrayLength() > 1024)
                 throw InvalidCatalog();
-            string? slug = null, displayName = null;
+            var visible = new List<ChatGptModelOption>();
+            var slugs = new HashSet<string>(StringComparer.Ordinal);
             foreach (JsonElement model in models.EnumerateArray())
             {
                 if (String(model, "visibility") != "list") continue;
                 string? candidate = String(model, "slug"), display = String(model, "display_name");
                 if (!SafeModel(candidate) || string.IsNullOrWhiteSpace(display) || display.Length > 200 || display.Any(char.IsControl))
                     throw InvalidCatalog();
-                // The server's first visible entry is the account preference.
-                if (slug == null) { slug = candidate; displayName = display; }
+                if (!slugs.Add(candidate!)) throw InvalidCatalog();
+                // Preserve server ordering. Auto uses the first visible entry.
+                IReadOnlyList<string> efforts = ReadReasoningEfforts(model);
+                string defaultEffort = String(model, "default_reasoning_level") ?? "";
+                visible.Add(new ChatGptModelOption(candidate!, display!)
+                {
+                    SupportedReasoningEfforts = efforts,
+                    DefaultReasoningEffort = efforts.Contains(defaultEffort, StringComparer.Ordinal) ? defaultEffort : ""
+                });
             }
-            if (slug == null) throw new NativeChatException("not_eligible", "No model is available for this ChatGPT account or workspace.");
+            if (visible.Count == 0) throw new NativeChatException("not_eligible", "No model is available for this ChatGPT account or workspace.");
+            IReadOnlyList<ChatGptModelOption> result = Array.AsReadOnly(visible.ToArray());
             signal.ThrowIfCancellationRequested();
             lock (_cacheLock)
             {
-                if (_cacheGeneration == generation)
-                {
-                    _cachedTokenHash = tokenHash; _cachedModel = slug; _catalogTime = DateTimeOffset.UtcNow;
-                    SelectedModel = displayName!;
-                }
+                if (_cacheGeneration != generation)
+                    throw new NativeChatException("model_catalog_changed", "The ChatGPT connection changed. Refresh the model list to try again.");
+                _cachedTokenHash = tokenHash; _cachedModels = result; _catalogTime = DateTimeOffset.UtcNow;
             }
-            return slug;
+            return result;
         }
         finally { _catalogGate.Release(); }
+    }
+
+    private static void ValidateBearer(string bearerToken)
+    {
+        if (string.IsNullOrWhiteSpace(bearerToken) || bearerToken.Length > 32768 || bearerToken.Any(char.IsControl))
+            throw new NativeChatException("not_connected", "Connect your selected account in mod settings, then try again.");
+    }
+
+    private static IReadOnlyList<string> ReadReasoningEfforts(JsonElement model)
+    {
+        // Capability metadata is optional. Missing, oversized or unfamiliar
+        // formats preserve the model's safe Auto option rather than guessing.
+        if (!Try(model, "supported_reasoning_levels", out JsonElement levels)
+            || levels.ValueKind != JsonValueKind.Array || levels.GetArrayLength() > 32)
+            return Array.Empty<string>();
+        var supported = new List<string>();
+        foreach (JsonElement level in levels.EnumerateArray())
+        {
+            string? effort = String(level, "effort");
+            // The catalog can expose modes for other clients (such as agent
+            // delegation). Only documented standard Responses values are sent.
+            if (ChatGptEffortOptions.IsKnown(effort) && !supported.Contains(effort!, StringComparer.Ordinal))
+                supported.Add(effort!);
+        }
+        return Array.AsReadOnly(supported.ToArray());
     }
 
     private static string ValidateApiModel(string model) => SafeModel(model) ? model
@@ -436,6 +516,8 @@ public sealed class NativeResponsesClient : IDisposable
         string code = String(detail, "error") ?? String(detail, "code") ?? "";
         string param = String(detail, "param") ?? "";
         // Only allowlisted diagnostics survive; unknown error codes can themselves contain private text.
+        if ((status is 200 or 400 or 422) && (param is "reasoning" or "reasoning.effort" or "reasoning_effort" or "reasoning[effort]"))
+            return new("effort_unavailable", "This model did not accept the selected effort. Refresh the models in GPT chat and choose another effort or Auto.");
         if (web && (code is "unsupported_tool" or "tool_not_supported" or "web_search_not_available" or "unsupported_parameter" or "subscription_sharing_unsupported_capability"
             || param == "tools" || param.StartsWith("tools.", StringComparison.Ordinal) || param.StartsWith("tools[", StringComparison.Ordinal)))
             return new("web_search_unavailable", "Live web search is unavailable for this account or model. Turn off live web search in mod settings to use ordinary GPT answers, or try again later.");

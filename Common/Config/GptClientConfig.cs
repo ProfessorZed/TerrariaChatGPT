@@ -27,6 +27,16 @@ public sealed class GptClientConfig : ModConfig
     [CustomModConfigItem(typeof(ChatGptConnectionConfigElement))]
     public string ChatGptConnection => string.Empty;
 
+    // Model IDs are public catalog identifiers, never authentication material.
+    // Empty preserves the account catalog's first available model (Auto).
+    [DefaultValue("")]
+    [CustomModConfigItem(typeof(ChatGptModelConfigElement))]
+    public string ChatGptModel { get; set; } = string.Empty;
+
+    [DefaultValue("")]
+    [CustomModConfigItem(typeof(ChatGptEffortConfigElement))]
+    public string ChatGptEffort { get; set; } = string.Empty;
+
     // This is only an anchor for the credential editor. The draft is owned by
     // that UI, so config clones, config JSON and multiplayer never hold a key.
     [JsonIgnore]

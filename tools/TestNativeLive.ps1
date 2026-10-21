@@ -6,7 +6,7 @@ if (-not $RunLive -and -not $CompileOnly) { throw 'This check uses the saved Cha
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $sources = @('Common/Native/NativeAssistantRuntime.cs','Common/Native/NativeAuthStorage.cs',
     'Common/Native/NativeAuthProtocol.cs','Common/Native/NativeAuthCallback.cs','Common/Native/NativeChatGptSession.cs',
-    'Common/Native/NativeResponsesClient.cs','Common/Native/NativeChatPrompt.cs','Common/Native/NativeChatException.cs',
+    'Common/Native/NativeResponsesClient.cs','Common/Native/ChatGptModelOption.cs','Common/Native/ChatGptEffortOptions.cs','Common/Native/NativeChatPrompt.cs','Common/Native/NativeChatException.cs',
     'Common/Native/NativeReplyParser.cs','Common/Native/NativeWikiClient.cs','Common/Security/GptCredentialStore.cs','Common/Security/CredentialStorage.cs',
     'Common/Services/ChatConvenience.cs','Common/Services/WebCitation.cs','Common/Services/GoalProposalReader.cs',
     'Common/Knowledge/AnswerFormatting.cs','Common/Knowledge/AnswerHighlight.cs','Common/Knowledge/CraftingPlanner.cs',

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.4 — Model and effort controls in chat
+
+- Added model and effort pickers directly inside the GPT chat window. Selections
+  save immediately and apply to new questions while preserving the conversation.
+- Effort choices follow the selected model's available capabilities. Unsupported
+  efforts reset visibly to Auto when switching models in chat.
+- Added an effort selector in mod settings, along with validation before sending
+  requests. Higher reasoning settings receive longer bounded answer timeouts.
+- Includes the model selection and silent reply notifications introduced in the
+  local 0.9.3 test build. Saved login, web search and goals are preserved.
+
+## 0.9.3 — Local test build: models and reply notifications
+
+- Added an account-specific ChatGPT model selector with an Auto option, explicit
+  list refresh and saved selection. Model changes apply to the next question.
+- Added a small silent reply preview while GPT chat is closed. It fades out after
+  seven seconds, leaving an unread `*` until GPT chat opens. It does not capture
+  input, clicks or the mouse wheel, and does not open the chat automatically.
+- Includes completion notifications for connection errors, without flagging
+  local help and status notices as new replies. Unread state resets with chat
+  clearing, world changes and account changes.
+- This version was tested locally; its changes are included in the 0.9.4 release.
+
 ## 0.9.2 — Protected storage and copy-link sign-in
 
 - Moved encrypted ChatGPT login and optional API-key storage under the active
@@ -12,7 +35,8 @@
 - Hardened credential permissions, linked-path handling, atomic writes and
   release packaging. Added regression checks for storage and migration failures.
 - Kept saved login, web search, goals and fair-play restrictions. The Workshop
-  item remains private pending moderator approval of the remaining native
+  item was initially private for review and was made public at the owner's
+  request. This does not imply moderator approval of the disclosed native
   encryption and local sign-in callback behavior.
 
 ## 0.9.1 — Fix loading after the rename

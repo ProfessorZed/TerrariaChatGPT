@@ -2,6 +2,8 @@ Terraria ChatGPT brings conversational help, live web search, and personal goal 
 
 Ask about recipes, equipment, bosses, or anything else. Read clear answers with colored highlights for important items, locations, supplies, and missing materials. Describe a goal and choose "Set goal?" to pin a checklist. Keep up to six notes, drag or collapse them, and follow supported progress automatically while playing.
 
+Choose your ChatGPT model and reasoning effort directly at the top of GPT chat. Available options follow your connected account and selected model. Close chat while waiting: a silent, fading answer preview and unread * let you know when the reply arrives without interrupting movement or clicks.
+
 The mod runs inside tModLoader. No separate companion, Python, or Node.js is needed. Connect an eligible ChatGPT account in mod settings, or explicitly choose the separately billed OpenAI API. Internet and available account allowance are required for online answers. Account and search availability depend on the connected service. Windows is required for this release's encrypted credential storage.
 
 Optional progress sharing uses your own items, remembered chests you opened in single-player, recorded boss defeats, achievements, and observed biome/NPC progress. Turn it off in settings if you prefer. Hidden locations and unopened storage are never scanned, and GPT cannot spawn, kill, teleport, or change your game. General advice can still be wrong.

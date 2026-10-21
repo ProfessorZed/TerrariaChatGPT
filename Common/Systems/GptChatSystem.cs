@@ -1,5 +1,7 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +10,7 @@ using Microsoft.Xna.Framework.Input;
 using Terraria;
 using Terraria.GameInput;
 using Terraria.ModLoader;
+using Terraria.UI;
 using ReLogic.OS;
 using TerrariaChatGPT.Common.Config;
 using TerrariaChatGPT.Common.Services;
@@ -26,6 +29,9 @@ public sealed class GptChatSystem : ModSystem
     private static bool _openRequested;
     private static string? _requestedQuestion;
     private readonly GptChatPanel _panel = new();
+    private readonly ChatModelToolbar _toolbar = new();
+    private readonly ReplyNotificationState _notifications = new();
+    private readonly ReplyNotificationPanel _notificationPanel = new();
     private bool _gptSelected;
     private string _question = string.Empty;
     private string _terrariaDraft = string.Empty;
@@ -66,6 +72,8 @@ public sealed class GptChatSystem : ModSystem
 
     public override void PostUpdateInput()
     {
+        ObserveReplies();
+        _toolbar.Update(IsGptOpen, ModContent.GetInstance<GptClientConfig>(), GptAssistantService.Epoch);
         if (_conversationEpoch != GptAssistantService.Epoch)
         {
             _conversationEpoch = GptAssistantService.Epoch;
@@ -100,6 +108,30 @@ public sealed class GptChatSystem : ModSystem
             RequestConnection(ChatGptConnectionAction.Status);
     }
 
+    public override void ModifyInterfaceLayers(List<GameInterfaceLayer> layers)
+    {
+        if (Main.dedServ) return;
+        int index = layers.FindIndex(layer => layer.Name == "Vanilla: Mouse Text");
+        if (index < 0) index = layers.Count;
+        layers.Insert(index, new LegacyGameInterfaceLayer("TerrariaChatGPT: Reply notification", () =>
+        {
+            _notificationPanel.Draw(Main.spriteBatch, _notifications, NotificationTime());
+            return true;
+        }, InterfaceScaleType.UI));
+    }
+
+    private static double NotificationTime() => (double)Stopwatch.GetTimestamp() / Stopwatch.Frequency;
+
+    private void ObserveReplies()
+    {
+        if (Main.dedServ || Main.gameMenu) return;
+        ChatEntry? latest = null;
+        IReadOnlyList<ChatEntry> messages = GptAssistantService.Messages;
+        for (int i = messages.Count - 1; i >= 0; i--)
+            if (messages[i].NotifiesReply) { latest = messages[i]; break; }
+        _notifications.Observe(latest, GptAssistantService.Epoch, IsGptOpen, NotificationTime());
+    }
+
     /// <summary>
     /// Opens on the next update, after vanilla has finished processing a /gpt
     /// command and closed its own input. A supplied question becomes a draft.
@@ -123,6 +155,9 @@ public sealed class GptChatSystem : ModSystem
         _recall.Clear();
         _copyStatus = "";
         _panel.Reset();
+        _toolbar.Reset();
+        _notifications.Reset();
+        _notificationPanel.Reset();
         StopConnectionPolling();
         _connection = new(false, false, string.Empty, string.Empty, false, false);
     }
@@ -198,11 +233,18 @@ public sealed class GptChatSystem : ModSystem
 
         if (JustPressed(Keys.Escape))
         {
+            if (_toolbar.IsOpen)
+            {
+                _toolbar.Close();
+                Main.clrInput();
+                return;
+            }
             Main.ClosePlayerChat();
             Main.clrInput();
             return;
         }
 
+        int wheel = 0;
         if (layout.Panel.Contains(mouse))
         {
             // The hotbar reads a separate wheel delta. Clearing the UI delta
@@ -211,10 +253,25 @@ public sealed class GptChatSystem : ModSystem
             PlayerInput.LockVanillaMouseScroll("TerrariaChatGPT:Chat");
             if (PlayerInput.ScrollWheelDeltaForUI != 0)
             {
-                _panel.Scroll(PlayerInput.ScrollWheelDeltaForUI > 0 ? 3 : -3);
+                wheel = PlayerInput.ScrollWheelDeltaForUI;
                 PlayerInput.ScrollWheelDeltaForUI = 0;
             }
         }
+
+        int pickerPage = JustPressed(Keys.PageUp) ? -1 : JustPressed(Keys.PageDown) ? 1 : 0;
+        if (_toolbar.HandleInput(layout, mouse, clicked, wheel, false, pickerPage))
+        {
+            Main.clrInput();
+            return;
+        }
+        if (_toolbar.IsOpen)
+        {
+            // The dropdown owns keyboard input until dismissed; Enter must not
+            // submit a question and Up/Down must not rewrite the preserved draft.
+            Main.clrInput();
+            return;
+        }
+        if (wheel != 0) _panel.Scroll(wheel > 0 ? 3 : -3);
 
         if (JustPressed(Keys.PageUp))
             _panel.Scroll(10);
@@ -304,7 +361,7 @@ public sealed class GptChatSystem : ModSystem
         {
             orig(self);
             if (!Main.gameMenu && Main.drawingPlayerChat)
-                _panel.DrawTabs(Main.spriteBatch, GptChatPanel.GetLayout(), false);
+                _panel.DrawTabs(Main.spriteBatch, GptChatPanel.GetLayout(), false, _notifications.HasUnread);
             return;
         }
 
@@ -313,11 +370,13 @@ public sealed class GptChatSystem : ModSystem
         _panel.Draw(Main.spriteBatch, _question, GptAssistantService.Messages,
             GptAssistantService.IsBusy, ModContent.GetInstance<GptClientConfig>().Provider,
             _connection, _connectionRequest is not null,
-            Main.GameUpdateCount < _copyStatusUntil ? _copyStatus : "");
+            Main.GameUpdateCount < _copyStatusUntil ? _copyStatus : "", _toolbar.Status);
+        _toolbar.Draw(Main.spriteBatch, GptChatPanel.GetLayout());
     }
 
     private void SelectGpt()
     {
+        _notifications.MarkRead();
         if (!_gptSelected)
         {
             _terrariaDraft = Main.chatText;
@@ -329,6 +388,7 @@ public sealed class GptChatSystem : ModSystem
 
     private void SelectTerraria()
     {
+        _toolbar.Close();
         if (_gptSelected)
         {
             _gptSelected = false;

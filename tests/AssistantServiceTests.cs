@@ -187,6 +187,43 @@ public static partial class AssistantServiceTests
             Equal(0, request.RootElement.GetProperty("knowledge").GetProperty("referenceSubjects").GetArrayLength());
             Finished();
         }, output);
+        Check("Each request keeps its selected model while later questions use the new setting", () =>
+        {
+            using var fixture = new Fixture(workspaceRoot, GptProvider.ChatGPT);
+            Terraria.ModLoader.ModContent.Config.ChatGptModel = "test-model-first";
+            Terraria.ModLoader.ModContent.Config.ChatGptEffort = "low";
+            Reply first = fixture.Reply("First answer.", gated: true);
+            GptAssistantService.Submit("Tell me about flight.");
+            Terraria.ModLoader.ModContent.Config.ChatGptModel = "test-model-second";
+            Terraria.ModLoader.ModContent.Config.ChatGptEffort = "high";
+            using JsonDocument initial = JsonDocument.Parse(Arrived(first).Body);
+            Equal("test-model-first", initial.RootElement.GetProperty("chatGptModel").GetString());
+            Equal("low", initial.RootElement.GetProperty("chatGptEffort").GetString());
+            first.Release.Set(); Finished();
+            Reply next = fixture.Reply("Follow-up answer.");
+            GptAssistantService.Submit("And which is easiest?");
+            using JsonDocument followUp = JsonDocument.Parse(Arrived(next).Body);
+            Equal("test-model-second", followUp.RootElement.GetProperty("chatGptModel").GetString());
+            Equal("high", followUp.RootElement.GetProperty("chatGptEffort").GetString());
+            Equal(2, followUp.RootElement.GetProperty("conversation").GetArrayLength());
+            Finished();
+        }, output);
+        Check("Only completed requests notify, including safe failures; local notices do not", () =>
+        {
+            using var fixture = new Fixture(workspaceRoot, GptProvider.ChatGPT);
+            GptAssistantService.AddNotice("A local notice.");
+            GptAssistantService.Submit("/help");
+            Require(GptAssistantService.Messages.All(entry => !entry.NotifiesReply), "A notice was marked as a completed answer.");
+            Reply reply = fixture.Reply("Try Rocket Boots.");
+            GptAssistantService.Submit("How can I fly?"); Arrived(reply);
+            Require(!GptAssistantService.Messages[^1].NotifiesReply, "The user's question produced a reply notification.");
+            Finished();
+            Require(GptAssistantService.Messages[^1].NotifiesReply, "The completed answer did not produce a notification.");
+            Reply error = fixture.Reply("Connection unavailable.", mode: "error");
+            GptAssistantService.Submit("What else?"); Arrived(error); Finished();
+            Require(GptAssistantService.Messages[^1].NotifiesReply, "A connection failure left the waiting user uninformed.");
+            Equal("Connection unavailable.", GptAssistantService.LastAnswer);
+        }, output);
         CheckChatOnly(workspaceRoot, output);
         CheckOnlineFeatures(workspaceRoot, output);
         GptAssistantService.Reset();

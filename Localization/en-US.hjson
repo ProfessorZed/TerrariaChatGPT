@@ -19,6 +19,16 @@ Mods: {
 					Tooltip: Used only when you select OpenAI API as the answer provider. Paste or type your key, then choose Save key. It is saved immediately, encrypted for your Windows account, separately from mod settings.
 				}
 
+				ChatGptModel: {
+					Label: ChatGPT model
+					Tooltip: Load the models available to your connected ChatGPT account, choose one, then Save Config. Auto uses the first available model. Changes apply to new questions; a reply already in progress keeps its original model. This setting does not change OpenAI API or Wiki only mode.
+				}
+
+				ChatGptEffort: {
+					Label: ChatGPT effort
+					Tooltip: Choose how much reasoning the selected model uses. Load supported choices, select one, then Save Config. Auto uses the service default. Lower effort favors speed; higher effort can take longer and use more of your plan allowance. You can also change model and effort directly in GPT chat.
+				}
+
 				EnableOnlineAnswers: {
 					Label: Enable online answers
 					Tooltip: Allow ChatGPT, OpenAI API and wiki requests over the internet. Local goal tracking and inventory tools keep working when disabled.
