@@ -13,13 +13,14 @@ using Terraria.ModLoader;
 using TerrariaChatGPT.Common.Config;
 using TerrariaChatGPT.Common.Services;
 using TerrariaChatGPT.Common.Players;
+using TerrariaChatGPT.Common.Sorting;
 
 namespace TerrariaChatGPT.Common.UI;
 
 internal readonly record struct GptChatLayout(
     Rectangle Panel, Rectangle Transcript, Rectangle Input,
     Rectangle TerrariaTab, Rectangle GptTab, Rectangle ConnectionBadge,
-    Rectangle ManageUsage, Rectangle CopyAnswer, Rectangle ModelSelector, Rectangle EffortSelector);
+    Rectangle ManageUsage, Rectangle CopyAnswer, Rectangle ModelSelector, Rectangle EffortSelector, Rectangle SortChests, Rectangle Memory = default);
 
 /// <summary>Literal glyph rendering: remote text never becomes Terraria chat tags.</summary>
 internal sealed class GptChatPanel
@@ -35,6 +36,7 @@ internal sealed class GptChatPanel
     private readonly Dictionary<ChatEntry, IReadOnlyList<DisplayLine>> _messageCache = new(ReferenceEqualityComparer.Instance);
     private IReadOnlyList<ChatTextLine> _welcomeLines = Array.Empty<ChatTextLine>();
     private readonly List<ChatActionHit> _actions = new();
+    private readonly HashSet<string> _undoneMemoryChanges = new(StringComparer.Ordinal);
     private GptChatLayout _actionLayout;
     private string _actionStatus = "";
     private ulong _actionStatusUntil;
@@ -49,6 +51,7 @@ internal sealed class GptChatPanel
     private string _inputCacheVisible = string.Empty;
     private int _inputCacheWidth;
     private bool _inputCacheCursor;
+    private string _hoverTooltip = "";
 
     public static GptChatLayout GetLayout()
     {
@@ -60,13 +63,14 @@ internal sealed class GptChatPanel
         return new(ToRectangle(geometry.Panel), ToRectangle(geometry.Transcript), ToRectangle(geometry.Input),
             ToRectangle(geometry.TerrariaTab), ToRectangle(geometry.GptTab), ToRectangle(geometry.ConnectionBadge),
             ToRectangle(geometry.ManageUsage), ToRectangle(geometry.CopyAnswer),
-            ToRectangle(geometry.ModelSelector), ToRectangle(geometry.EffortSelector));
+            ToRectangle(geometry.ModelSelector), ToRectangle(geometry.EffortSelector), ToRectangle(geometry.SortChests), ToRectangle(geometry.Memory));
     }
 
     public void Reset()
     {
         _lines.Clear();
         _actions.Clear();
+        _undoneMemoryChanges.Clear();
         _actionStatus = "";
         _messageCache.Clear();
         _welcomeLines = Array.Empty<ChatTextLine>();
@@ -78,18 +82,30 @@ internal sealed class GptChatPanel
         _cachedScale = 0;
         _cachedFont = null;
         _inputCacheText = string.Empty;
+        _hoverTooltip = "";
     }
 
     public void Scroll(int lines) { _scrollFromBottom = Math.Max(0, _scrollFromBottom + lines); _actions.Clear(); }
     public void ScrollToLatest() { _scrollFromBottom = 0; _actions.Clear(); }
 
-    public bool HandleClick(Point mouse)
+    public bool HandleClick(Point mouse, Action<SortSuggestion>? reviewSort = null)
     {
         // A resize invalidates the previous frame's link/button hit rectangles.
         if (_actionLayout != GetLayout()) return false;
         ChatActionHit? hit = _actions.LastOrDefault(action => action.Bounds.Contains(mouse));
         if (hit is null || !GptAssistantService.Messages.Any(entry => ReferenceEquals(entry, hit.Entry))) return false;
-        if (hit.Goal && hit.Entry.GoalSuggestion is not null)
+        if (hit.Sort && hit.Entry.SortSuggestion is SortSuggestion suggestion)
+        {
+            if (GptAssistantService.IsCurrentSortSuggestion(suggestion)) reviewSort?.Invoke(suggestion);
+            else _actionStatus = "This sort plan has expired. Ask GPT for an updated plan.";
+        }
+        else if (hit.MemoryUndo && hit.Entry.MemoryChangeId is string changeId && !_undoneMemoryChanges.Contains(changeId))
+        {
+            bool restored = Main.LocalPlayer.GetModPlayer<GptMemoryPlayer>().Undo(changeId, out string message);
+            if (restored) _undoneMemoryChanges.Add(changeId);
+            _actionStatus = message;
+        }
+        else if (hit.Goal && hit.Entry.GoalSuggestion is not null)
         {
             Main.LocalPlayer.GetModPlayer<GptProgressPlayer>().TrySetGoal(hit.Entry.GoalSuggestion, out _, out string message);
             _actionStatus = message;
@@ -110,23 +126,36 @@ internal sealed class GptChatPanel
         GptChatLayout layout = GetLayout();
         _actionLayout = layout;
         _actions.Clear();
+        _hoverTooltip = "";
         float configuredScale = ModContent.GetInstance<GptClientConfig>().ChatTextScale;
         float textScale = float.IsFinite(configuredScale) ? Math.Clamp(configuredScale, 0.7f, 1.2f) : 0.9f;
         DynamicSpriteFont font = FontAssets.MouseText.Value;
         int lineHeight = Math.Max(18, (int)Math.Ceiling(font.LineSpacing * textScale) + 1);
+        Version loadedVersion = ModContent.GetInstance<global::TerrariaChatGPT.TerrariaChatGPTMod>().Version;
+        Rectangle versionBadge = ToRectangle(ModReleaseNotes.Badge(
+            new ChatRect(layout.Panel.X, layout.Panel.Y, layout.Panel.Width, layout.Panel.Height),
+            new ChatRect(layout.Memory.X, layout.Memory.Y, layout.Memory.Width, layout.Memory.Height),
+            new ChatRect(layout.SortChests.X, layout.SortChests.Y, layout.SortChests.Width, layout.SortChests.Height)));
         DrawBox(spriteBatch, layout.Panel, new Color(15, 23, 35, 247), new Color(77, 111, 127));
         if (layout.Panel.Height >= 80)
         {
             DrawClippedText(spriteBatch, "GPT", new Vector2(layout.Panel.X + 14, layout.Panel.Y + 9),
                 new Color(155, 245, 211), 0.95f, layout.Panel);
-            if (layout.Panel.Width >= 450)
+            DrawBox(spriteBatch, versionBadge, new Color(29, 45, 62), new Color(73, 106, 124));
+            DrawClippedText(spriteBatch, HeadToFit("v" + loadedVersion, versionBadge.Width - 10, 0.62f),
+                new Vector2(versionBadge.X + 5, versionBadge.Y + 3), MutedTextColor, 0.62f, Inset(versionBadge, 3, 1));
+            int companionX = versionBadge.Right + 10;
+            int companionWidth = Math.Max(0, layout.Memory.X - companionX - 8);
+            if (companionWidth >= 80)
                 DrawClippedText(spriteBatch, toolbarStatus.Length > 0 ? toolbarStatus : "Your Terraria companion",
-                    new Vector2(layout.Panel.X + 65, layout.Panel.Y + 12), MutedTextColor, 0.70f,
-                    new Rectangle(layout.Panel.X + 65, layout.Panel.Y + 7, Math.Max(0, layout.Panel.Width - 180), 30));
+                    new Vector2(companionX, layout.Panel.Y + 12), MutedTextColor, 0.70f,
+                    new Rectangle(companionX, layout.Panel.Y + 7, companionWidth, 30));
             bool canCopy = false;
             for (int i = messages.Count - 1; i >= 0; i--)
                 if (messages[i].Role == "assistant") { canCopy = true; break; }
             DrawButton(spriteBatch, layout.CopyAnswer, copyStatus.Length > 0 ? copyStatus : "Copy answer", canCopy, 0.60f);
+            DrawButton(spriteBatch, layout.SortChests, "Sort chests", true, 0.62f);
+            DrawButton(spriteBatch, layout.Memory, "Memory", true, 0.62f);
         }
 
         int visibleLines = Math.Max(0, layout.Transcript.Height / lineHeight);
@@ -138,7 +167,9 @@ internal sealed class GptChatPanel
         for (int i = start; i < end; i++)
         {
             Vector2 position = new(layout.Transcript.X, layout.Transcript.Y + (i - start) * lineHeight);
-            if (_lines[i].Actions && _lines[i].Entry is ChatEntry owner)
+            if (_lines[i].MemoryNotice && _lines[i].Entry is ChatEntry memoryOwner)
+                DrawMemoryNotice(spriteBatch, memoryOwner, position, lineHeight, layout.Transcript);
+            else if (_lines[i].Actions && _lines[i].Entry is ChatEntry owner)
                 DrawAnswerActions(spriteBatch, owner, position, lineHeight, layout.Transcript);
             else DrawLine(spriteBatch, _lines[i].Line, position, _lines[i].Color, textScale, layout.Transcript, _lines[i].Entry);
         }
@@ -184,7 +215,17 @@ internal sealed class GptChatPanel
             new Vector2(layout.Input.X + 12, layout.Input.Y + 5),
             question.Length == 0 ? new Color(163, 185, 201) : UserTextColor, 0.85f,
             Inset(layout.Input, Math.Min(4, layout.Input.Width / 3), 1));
-        DrawSourceTooltip(spriteBatch);
+        UpdateSourceTooltip();
+        if (versionBadge.Width > 0 && versionBadge.Contains(UiMouse()))
+            _hoverTooltip = ModReleaseNotes.ForVersion(loadedVersion);
+    }
+
+    // Called by the chat compositor after the model toolbar and its dropdowns.
+    // Gathering hover text while drawing content keeps every chat tooltip on the final overlay layer.
+    public void DrawTooltips(SpriteBatch spriteBatch)
+    {
+        if (_actionLayout == GetLayout() && _hoverTooltip.Length > 0)
+            DrawLiteralTooltip(spriteBatch, _hoverTooltip, UiMouse());
     }
 
     public void DrawTabs(SpriteBatch spriteBatch, GptChatLayout layout, bool gptSelected, bool unread = false)
@@ -269,8 +310,10 @@ internal sealed class GptChatPanel
                     character => Metrics(font, character), font.CharacterSpacing);
                 var display = new List<DisplayLine>(wrapped.Count + 1);
                 foreach (ChatTextLine line in wrapped) display.Add(new DisplayLine(line, baseColor, entry));
-                if (entry.Role == "assistant" && (entry.GoalSuggestion is not null || entry.WebSearched))
+                if (entry.Role == "assistant" && (entry.GoalSuggestion is not null || entry.WebSearched || entry.SortSuggestion is not null))
                     display.Add(new DisplayLine(new ChatTextLine(Array.Empty<ChatTextRun>(), 0), baseColor, entry, true));
+                if (entry.Role == "assistant" && !string.IsNullOrEmpty(entry.MemoryChangeId))
+                    display.Add(new DisplayLine(new ChatTextLine(Array.Empty<ChatTextRun>(), 0), baseColor, entry, MemoryNotice: true));
                 display.Add(new DisplayLine(new ChatTextLine(Array.Empty<ChatTextRun>(), 0), baseColor));
                 cached = display;
                 _messageCache.Add(entry, cached);
@@ -333,6 +376,15 @@ internal sealed class GptChatPanel
     private void DrawAnswerActions(SpriteBatch batch, ChatEntry entry, Vector2 position, int lineHeight, Rectangle clip)
     {
         int x = (int)position.X;
+        if (entry.SortSuggestion is not null)
+        {
+            Rectangle bounds = Rectangle.Intersect(clip, new Rectangle(x, (int)position.Y, Math.Min(110, clip.Width), Math.Min(24, lineHeight)));
+            bool current = GptAssistantService.IsCurrentSortSuggestion(entry.SortSuggestion);
+            DrawButton(batch, bounds, current ? "Review sort" : "Plan expired", current, 0.63f);
+            if (current && bounds.Width > 0 && bounds.Height > 0)
+                _actions.Add(new ChatActionHit(bounds, entry, null, false, Sort: true));
+            x += 120;
+        }
         if (entry.GoalSuggestion is not null)
         {
             Rectangle bounds = Rectangle.Intersect(clip, new Rectangle(x, (int)position.Y, Math.Min(106, clip.Width), Math.Min(24, lineHeight)));
@@ -344,12 +396,26 @@ internal sealed class GptChatPanel
             DrawClippedText(batch, "Searched the web", new Vector2(x, position.Y + 3), MutedTextColor, 0.61f, clip);
     }
 
-    private void DrawSourceTooltip(SpriteBatch batch)
+    private void UpdateSourceTooltip()
     {
         Point mouse = UiMouse();
         ChatActionHit? hit = _actions.LastOrDefault(action => action.Citation is not null && action.Bounds.Contains(mouse));
         if (hit?.Citation is not WebCitation citation || !WebCitationLinks.TryGetPublicUri(citation.Url, out Uri? uri)) return;
-        DrawLiteralTooltip(batch, (string.IsNullOrWhiteSpace(citation.Title) ? uri!.Host : citation.Title) + "\n" + uri!.Host + " - Click to copy link", mouse);
+        _hoverTooltip = (string.IsNullOrWhiteSpace(citation.Title) ? uri!.Host : citation.Title) + "\n" + uri!.Host + " - Click to copy link";
+    }
+
+    private void DrawMemoryNotice(SpriteBatch batch, ChatEntry entry, Vector2 position, int lineHeight, Rectangle clip)
+    {
+        bool undone = _undoneMemoryChanges.Contains(entry.MemoryChangeId!);
+        int buttonWidth = Math.Min(58, clip.Width);
+        Rectangle undo = Rectangle.Intersect(clip, new Rectangle(clip.Right - buttonWidth, (int)position.Y, buttonWidth, Math.Min(24, lineHeight)));
+        string label = undone ? "Memory change undone" : "Memory saved: " + (entry.MemorySummary ?? "Your preference");
+        Rectangle textClip = new(clip.X, (int)position.Y, Math.Max(0, clip.Width - buttonWidth - 8), lineHeight);
+        DrawClippedText(batch, HeadToFit(label, textClip.Width, 0.61f), position + new Vector2(0, 3), OwnedTextColor, 0.61f, textClip);
+        DrawButton(batch, undo, undone ? "Undone" : "Undo", !undone, 0.60f);
+        if (!undone && undo.Width > 0 && undo.Height > 0)
+            _actions.Add(new ChatActionHit(undo, entry, null, false, MemoryUndo: true));
+        if (textClip.Contains(UiMouse())) _hoverTooltip = label;
     }
 
     internal static void DrawLiteralTooltip(SpriteBatch batch, string text, Point mouse)
@@ -510,6 +576,6 @@ internal sealed class GptChatPanel
     private static Rectangle Inset(Rectangle rectangle, int x, int y) => new(
         rectangle.X + x, rectangle.Y + y, Math.Max(0, rectangle.Width - 2 * x), Math.Max(0, rectangle.Height - 2 * y));
     private static Rectangle ToRectangle(ChatRect rectangle) => new(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
-    private sealed record DisplayLine(ChatTextLine Line, Color Color, ChatEntry? Entry = null, bool Actions = false);
-    private sealed record ChatActionHit(Rectangle Bounds, ChatEntry Entry, WebCitation? Citation, bool Goal);
+    private sealed record DisplayLine(ChatTextLine Line, Color Color, ChatEntry? Entry = null, bool Actions = false, bool MemoryNotice = false);
+    private sealed record ChatActionHit(Rectangle Bounds, ChatEntry Entry, WebCitation? Citation, bool Goal, bool MemoryUndo = false, bool Sort = false);
 }

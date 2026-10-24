@@ -12,12 +12,15 @@ namespace Terraria
         public static bool gameMenu;
         public static int myPlayer;
         public static int netMode;
-        public static int maxChests = 1000;
+        public static int maxChests = 1000, maxTilesX = 10000, maxTilesY = 10000;
+        public static TileMap tile = new(); public static Player LocalPlayer = new();
         public static ChestReadSpy chest = new();
         public static Item mouseItem = new();
         public static WorldFileData ActiveWorldFileData = new();
     }
 
+    public sealed class TileMap { public bool Intact = true; public Tile this[int x,int y] => new() { HasTile = Intact, TileType = 21 }; }
+    public struct Tile { public bool HasTile; public ushort TileType; public short TileFrameX, TileFrameY; }
     public sealed class WorldFileData
     {
         public Guid UniqueId { get; set; }
@@ -44,6 +47,7 @@ namespace Terraria
 
     public sealed class Chest
     {
+        public static readonly Dictionary<(int, int), int> Locations = new(); public static int FindChest(int x, int y) => Locations.GetValueOrDefault((x, y), -1);
         public int x;
         public int y;
         public string name = string.Empty;
@@ -52,6 +56,7 @@ namespace Terraria
 
     public sealed class Item
     {
+        public int createTile;
         public int type;
         public int stack;
         public string Name { get; set; } = string.Empty;
@@ -92,6 +97,7 @@ namespace Terraria.ID
         public const int Server = 2;
     }
 
+    public static class TileID { public const int Containers = 21, Containers2 = 467; }
     public static class ItemID
     {
         public static ItemNameSearch Search { get; } = new();
@@ -111,6 +117,8 @@ namespace Terraria.ID
 
 namespace Terraria.ModLoader
 {
+    public abstract class ModSystem { public virtual void ClearWorld() {} public virtual void PostUpdateWorld() {} public virtual void SaveWorldData(IO.TagCompound tag) {} public virtual void LoadWorldData(IO.TagCompound tag) {} }
+    public abstract class GlobalTile { public virtual void PlaceInWorld(int i, int j, int type, Terraria.Item item) {} public virtual void KillTile(int i, int j, int type, ref bool fail, ref bool effectOnly, ref bool noItem) {} }
     public class ModItem
     {
         public string FullName { get; set; } = "TestMod/TestItem";
@@ -136,3 +144,5 @@ namespace Terraria.ModLoader.IO
         public IList<T> GetList<T>(string key) => TryGetValue(key, out object? value) ? (IList<T>)value : new List<T>();
     }
 }
+
+

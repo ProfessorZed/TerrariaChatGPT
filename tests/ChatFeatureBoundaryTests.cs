@@ -18,7 +18,7 @@ public static class ChatFeatureBoundaryTests
         Check("Observed context exports only the explicit public contract", () =>
         {
             using var json = Project(Empty());
-            string[] expected = { "enabled", "inventory", "rememberedItems", "bosses", "worldProgress", "achievements", "biomes", "npcs", "currentBiomes", "truncated" };
+            string[] expected = { "enabled", "capturedAtUtc", "inventory", "rememberedItems", "bosses", "worldProgress", "achievements", "biomes", "npcs", "npcHappiness", "knownChests", "sortingCandidates", "currentBiomes", "truncated" };
             Assert(json.RootElement.EnumerateObject().Select(property => property.Name).OrderBy(value => value).SequenceEqual(expected.OrderBy(value => value)), "Unapproved field in observation export.");
         });
         Check("Default chest coordinates are removed while observation age and open state survive", () =>
@@ -27,6 +27,16 @@ public static class ChatFeatureBoundaryTests
             JsonElement item = json.RootElement.GetProperty("rememberedItems")[0];
             Assert(!json.RootElement.GetRawText().Contains("999, 123") && item.GetProperty("lastObservedUtc").GetString()!.StartsWith("1970-01-01"), "Chest position/age handling incorrect.");
             Assert(!item.GetProperty("isCurrentlyOpen").GetBoolean(), "Remembered storage promoted to current.");
+        });
+        Check("Empty known chest names survive export without coordinates or invented nearby state", () =>
+        {
+            using var json = Project(Empty() with { KnownChests = new[] {
+                new KnownProgressChest("Vanity & Paints", DateTimeOffset.UnixEpoch),
+                new KnownProgressChest("Vanity & Paints", DateTimeOffset.UnixEpoch.AddDays(1)),
+                new KnownProgressChest("Chest at tile 999, 123", DateTimeOffset.UnixEpoch) } });
+            var rows = json.RootElement.GetProperty("knownChests");
+            Assert(rows.GetArrayLength() == 1 && rows[0].GetProperty("name").GetString() == "Vanity & Paints", "Known names lost or duplicated.");
+            Assert(rows[0].EnumerateObject().Count() == 2 && !rows.GetRawText().Contains("999"), "Non-label chest data escaped.");
         });
         Check("Every context collection has an explicit bound and discloses truncation", () =>
         {
@@ -39,12 +49,32 @@ public static class ChatFeatureBoundaryTests
                 Achievements = Enumerable.Range(0, 130).Select(index => new ProgressFlag("achievement" + index, "Achievement" + index, false, "account")).ToArray(),
                 VisitedBiomes = Enumerable.Range(0, 50).Select(index => new ProgressSubject("biome" + index, "Biome" + index)).ToArray(),
                 KnownNpcs = Enumerable.Range(0, 90).Select(index => new NpcProgress("npc" + index, "NPC" + index, true, false)).ToArray(),
+                NpcHappiness = Enumerable.Range(0, 90).Select(index => Happiness() with { Key = "Terraria/Npc" + index, Name = "NPC" + index }).ToArray(),
+                KnownChests = Enumerable.Range(0, 90).Select(index => new KnownProgressChest("Chest" + index, DateTimeOffset.UnixEpoch)).ToArray(),
                 CurrentBiomes = Enumerable.Range(0, 30).Select(index => "Biome" + index).ToArray()
             };
             using var json = Project(snapshot);
-            foreach (var limit in new[] { ("inventory", 120), ("rememberedItems", 160), ("bosses", 40), ("worldProgress", 40), ("achievements", 120), ("biomes", 40), ("npcs", 80), ("currentBiomes", 24) })
+            foreach (var limit in new[] { ("inventory", 120), ("rememberedItems", 160), ("bosses", 40), ("worldProgress", 40), ("achievements", 120), ("biomes", 40), ("npcs", 80), ("npcHappiness", 80), ("knownChests", 80), ("currentBiomes", 24) })
                 Assert(json.RootElement.GetProperty(limit.Item1).GetArrayLength() == limit.Item2, "Missing bound on " + limit.Item1);
             Assert(json.RootElement.GetProperty("truncated").GetBoolean(), "Truncation hidden from model.");
+        });
+        Check("Sorting candidates are bounded exact item identities without inventory slots or private state", () =>
+        {
+            var candidates = Enumerable.Range(0, 45).Select(index => new ProgressSubject("Terraria/Item" + index, "Item " + index)).ToArray();
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(ObservedContextBuilder.Build(Empty(), "Categorise them according to my chests", candidates)));
+            var rows = json.RootElement.GetProperty("sortingCandidates");
+            Assert(rows.GetArrayLength() == 40 && json.RootElement.GetProperty("truncated").GetBoolean(), "Sorting candidate limit missing.");
+            Assert(rows.EnumerateArray().All(row => row.EnumerateObject().Select(field => field.Name).OrderBy(name => name).SequenceEqual(new[] { "key", "name" })), "Sorting exported unauthorized fields.");
+        });
+        Check("Sorting candidates preserve canonical mod keys and exclude malformed identities", () =>
+        {
+            string longKey = "ExampleMod/" + new string('x', 150);
+            var candidates = new[] { new ProgressSubject(longKey, "Long key"), new ProgressSubject(longKey, "Duplicate"),
+                new ProgressSubject("Terraria/Wood\n", "Invalid"), new ProgressSubject("../private/file", "Invalid"),
+                new ProgressSubject("Terraria/" + new string('x', 181), "Too long") };
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(ObservedContextBuilder.Build(Empty(), "sort", candidates)));
+            var rows = json.RootElement.GetProperty("sortingCandidates");
+            Assert(rows.GetArrayLength() == 1 && rows[0].GetProperty("key").GetString() == longKey, "Canonical key was truncated, duplicated or malformed identity accepted.");
         });
         Check("Multi-word current biomes use the public keys accepted by both companion validators", () =>
         {
@@ -69,6 +99,48 @@ public static class ChatFeatureBoundaryTests
             } });
             var values = json.RootElement.GetProperty("inventory").EnumerateArray().ToArray();
             Assert(values.Length == 2 && values.Single(value => value.GetProperty("canUseForCrafting").GetBoolean()).GetProperty("count").GetInt32() == 999999, "Counts overflowed or equipment was merged.");
+        });
+        Check("NPC observations keep exact multipliers, derived discounts and their observed age", () =>
+        {
+            using var json = Project(Empty() with { NpcHappiness = new[] { Happiness(0.75), Happiness(1.0) with { Key = "Terraria/Nurse" }, Happiness(1.5) with { Key = "Terraria/ArmsDealer", IsCurrent = true } } });
+            JsonElement[] rows = json.RootElement.GetProperty("npcHappiness").EnumerateArray().ToArray();
+            JsonElement discount = rows.Single(row => row.GetProperty("priceAdjustment").GetDouble() == 0.75);
+            Assert(discount.GetProperty("pricePercent").GetDouble() == 75 && discount.GetProperty("priceChangePercent").GetDouble() == -25, "Discount conversion is wrong.");
+            JsonElement markup = rows.Single(row => row.GetProperty("priceAdjustment").GetDouble() == 1.5);
+            Assert(markup.GetProperty("pricePercent").GetDouble() == 150 && markup.GetProperty("priceChangePercent").GetDouble() == 50, "Markup conversion is wrong.");
+            Assert(!discount.GetProperty("isCurrent").GetBoolean() && markup.GetProperty("isCurrent").GetBoolean(), "Remembered observation promoted to live.");
+            Assert(discount.GetProperty("lastObservedUtc").GetString()!.StartsWith("1970-01-01", StringComparison.Ordinal), "Observation timestamp was lost.");
+            Assert(json.RootElement.GetProperty("capturedAtUtc").GetString() == "1970-01-01T00:00:00.0000000+00:00", "Snapshot capture time was lost.");
+            Assert(rows.Single(row => row.GetProperty("priceAdjustment").GetDouble() == 1).GetProperty("priceChangePercent").GetDouble() == 0, "Normal prices were misclassified.");
+        });
+        Check("Invalid or unsupported happiness observations cannot become assumed normal prices", () =>
+        {
+            var invalid = new[] { double.NaN, double.NegativeInfinity, double.PositiveInfinity, 0, -1, 0.009, 100.001 }.Select(Happiness).ToList();
+            invalid.Add(Happiness() with { HappinessReport = "\r\n\0 " });
+            invalid.Add(Happiness() with { Name = "\n" });
+            invalid.Add(Happiness() with { Key = "Terraria/NPC\nIGNORE" });
+            using var json = Project(Empty() with { NpcHappiness = invalid });
+            Assert(json.RootElement.GetProperty("npcHappiness").GetArrayLength() == 0, "Invalid values or empty game reports entered the model context.");
+            using var modded = Project(Empty() with { NpcHappiness = new[] { Happiness(0.5), Happiness(2.0) } });
+            Assert(modded.RootElement.GetProperty("npcHappiness")[0].GetProperty("priceAdjustment").GetDouble() == 0.5, "A modded multiplier was silently clamped to vanilla.");
+        });
+        Check("Relevant NPC happiness survives truncation and its fields remain bounded", () =>
+        {
+            var rows = Enumerable.Range(0, 81).Select(index => Happiness() with { Key = "Terraria/Npc" + index, Name = "NPC" + index }).ToList();
+            rows.Add(Happiness() with { Name = "Goblin Tinkerer", HappinessReport = new string('x', 1500) + "\n\0",
+                ObservedBiomes = Enumerable.Range(0, 25).Select(index => "Biome " + index).ToArray() });
+            using var json = Project(Empty() with { NpcHappiness = rows }, "How happy is the Goblin Tinkerer?");
+            JsonElement first = json.RootElement.GetProperty("npcHappiness")[0];
+            Assert(first.GetProperty("name").GetString() == "Goblin Tinkerer", "Relevant NPC omitted.");
+            Assert(first.GetProperty("happinessReport").GetString()!.Length == 1200, "Happiness report exceeded the export bound.");
+            Assert(first.GetProperty("observedBiomes").GetArrayLength() == 24 && json.RootElement.GetProperty("truncated").GetBoolean(), "NPC biome bound was not disclosed.");
+        });
+        Check("Happiness biome context is a detached observation and does not replace current biome state", () =>
+        {
+            using var json = Project(Empty() with { NpcHappiness = new[] { Happiness() with { ObservedBiomes = new[] { "Underground Desert", "Terraria/Forest", "Terraria/Forest", "", "Not a key!" } } } });
+            Assert(json.RootElement.GetProperty("currentBiomes").GetArrayLength() == 0, "Old NPC observation became current player state.");
+            Assert(json.RootElement.GetProperty("npcHappiness")[0].GetProperty("observedBiomes").EnumerateArray().Select(value => value.GetString())
+                .SequenceEqual(new[] { "Terraria/UndergroundDesert", "Terraria/Forest" }), "Observed biome names were not normalized, validated and deduplicated.");
         });
         Check("Account and world progress remain distinct", () =>
         {
@@ -163,6 +235,8 @@ public static class ChatFeatureBoundaryTests
     }
     private static void Assert(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
     private static JsonDocument Project(ProgressSnapshot snapshot, string question = "Hello") => JsonDocument.Parse(JsonSerializer.Serialize(ObservedContextBuilder.Build(snapshot, question)));
+    private static NpcHappinessObservation Happiness(double price = 0.9) => new("Terraria/GoblinTinkerer", "Goblin Tinkerer", price,
+        "I like this place.", DateTimeOffset.UnixEpoch, false, Array.Empty<string>());
     private static ProgressSnapshot Empty() => new(DateTimeOffset.UnixEpoch, Array.Empty<ProgressItem>(), Array.Empty<RememberedProgressItem>(),
         Array.Empty<ProgressFlag>(), Array.Empty<ProgressFlag>(), Array.Empty<ProgressFlag>(), Array.Empty<ProgressSubject>(), Array.Empty<NpcProgress>(), Array.Empty<string>());
 }

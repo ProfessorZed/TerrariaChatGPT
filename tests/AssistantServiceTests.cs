@@ -226,6 +226,8 @@ public static partial class AssistantServiceTests
         }, output);
         CheckChatOnly(workspaceRoot, output);
         CheckOnlineFeatures(workspaceRoot, output);
+        CheckMemory(workspaceRoot, output);
+        CheckActionableSorting(workspaceRoot, output);
         GptAssistantService.Reset();
         return output.ToArray();
     }
@@ -253,6 +255,11 @@ public static partial class AssistantServiceTests
         public Fixture(string workspaceRoot, GptProvider provider = GptProvider.WikiOnly)
         {
             Terraria.Main.SavePath = workspaceRoot; Terraria.Main.gameMenu = false; Terraria.Main.dedServ = false;
+            Terraria.Main.LocalPlayer = new();
+            Terraria.Main.ActiveWorldFileData = new(); GptKnowledgePlayer.Session = Guid.NewGuid();
+            TerrariaChatGPT.Common.Sorting.ChestSortService.RememberCalls = 0;
+            TerrariaChatGPT.Common.Sorting.ChestSortService.RememberSucceeds = true;
+            TerrariaChatGPT.Common.Sorting.ChestSortService.LastRemembered = null;
             Terraria.Player.ModPlayerReads = 0; Terraria.Player.RejectReads = false; GameReferenceFacts.ResolveCalls = 0;
             GptAssistantService.Reset();
             GptKnowledgePlayer.Snapshot = new KnowledgeSnapshot("PRIVATE-PLAYER", DateTimeOffset.UnixEpoch,
@@ -288,7 +295,14 @@ public static partial class AssistantServiceTests
                 foreach (JsonElement mark in marks.EnumerateArray())
                     highlights.Add(new(mark.GetProperty("text").GetString()!, mark.GetProperty("kind").GetString()!));
             return new NativeChatReply(answer, highlights, WebCitationLinks.Read(root, answer),
-                root.TryGetProperty("searched", out var searched) && searched.ValueKind == JsonValueKind.True, GoalProposalReader.Read(root));
+                root.TryGetProperty("searched", out var searched) && searched.ValueKind == JsonValueKind.True, GoalProposalReader.Read(root))
+            {
+                MemorySuggestions = root.TryGetProperty("memorySuggestions", out _) ?
+                    NativeReplyParser.Parse(reply.Body, Array.Empty<NativeSourceAnnotation>(), false).MemorySuggestions :
+                    Array.Empty<TerrariaChatGPT.Common.Memory.MemoryProposal>(),
+                SortSuggestion = root.TryGetProperty("sortingSuggestion", out _) ?
+                    NativeReplyParser.Parse(reply.Body, Array.Empty<NativeSourceAnnotation>(), false).SortSuggestion : null
+            };
         }, cancellation);
         public void Dispose()
         {

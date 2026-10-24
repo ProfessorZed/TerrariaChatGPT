@@ -2,7 +2,7 @@
 
 Terraria ChatGPT connects directly to the selected service from tModLoader.
 It has no developer-operated relay, analytics service, or separate companion
-process. This describes version 0.9.2.
+process. This describes version 0.9.9.
 
 ## What goes online
 
@@ -12,14 +12,38 @@ history is held in memory: at most 12 messages, 2,000 characters per message,
 and 12,000 characters overall. Clearing chat, leaving the world, or changing
 provider resets the outgoing history.
 
+The running Terraria and tModLoader version numbers are included as public
+software context, even when observation sharing is disabled.
+
+When **Memory** is enabled, up to 32 saved preferences and item-sorting rules
+are also included in online ChatGPT/API requests. This is independent of
+**Share observed progress**. Only bounded preference text, topic, item key and
+sorting target are sent; local record identifiers, source quotes, timestamps,
+character identifiers and save paths are excluded. Saved chest-name preferences
+can therefore be sent as preference context, but are not permission to inspect
+that chest. Instructions prohibit sending these private preferences to web search.
+Pause Memory in its chat panel to stop both learning and sharing existing entries.
+
 **Share observed progress with GPT** is on by default. When enabled, a bounded
 summary may include:
 
 - Carried and equipped items and their quantities.
 - Single-player chest contents remembered after you opened those chests.
+- Remembered names of opened or player-placed chests, including empty chests.
+  Names do not assert current proximity, free space or up-to-date contents.
 - Recorded world boss defeats and supported NPC rescue flags.
 - Biome visits and NPC conversations observed while the mod is active.
+- NPC happiness price modifiers, mood explanations, observed biomes and reading
+  times collected while speaking to that NPC. Older readings are marked remembered.
 - Local account achievement records, identified as account-wide records.
+
+For a request to categorize inventory into chests, the shared context can also
+include up to 40 distinct eligible main-inventory item keys and display names,
+plus remembered names of chests you opened or placed. These allow GPT to return
+specific item-to-chest choices. The local preview's slot-by-slot transfer plan,
+current range/capacity checks and storage identity tokens are not sent to GPT.
+New GPT sorting choices require this observation-sharing setting; disabling it
+does not disable the local category sorter or enabled saved preferences.
 
 It does not send your player name, world identifier, world seed, map, unexplored
 locations, unopened-chest contents, or off-screen entity locations. Multiplayer
@@ -46,9 +70,48 @@ on that provider's behalf.
 
 ## What stays on your computer
 
-Goal notes, their positions, remembered chest snapshots, and recorded encounters
+Memory entries, a short source quote, and an update timestamp are stored in the
+character's normal mod data. They follow that character across worlds and normal
+character saves/restarts. They are not encrypted credential records: do not put
+secrets into chat or memory. Automatic filters reject obvious credentials and
+sensitive strings but are not a guarantee of detecting every secret. No complete
+chat transcript is persisted by this feature. Undo receipts exist only during
+the session. Save & Quit normally; abrupt crashes may lose unsaved changes.
+
+Use Memory to review/remove entries or clear all. Removal, Undo and pausing also
+clear the outgoing recent conversation and cancel old requests to stop stale
+context from immediately reintroducing a forgotten preference. They cannot recall
+data already sent to a provider. `/clear` clears chat without deleting memory.
+
+Goal notes, their positions, remembered chest snapshots, NPC happiness readings, and recorded encounters
 are saved with local player/mod data. Goal checks run locally, without repeated
 AI calls. Closed-chest snapshots can become stale; they are not live scans.
+
+The **Sort chests** preview is computed locally. Clicking it checks only named,
+remembered chests you previously opened or placed and that are within the
+normal Quick Stack range. The preview and its local destination identifiers are
+not sent to the AI. **Confirm sort** rechecks the reviewed state and transfers
+eligible inventory items. It refreshes memories of the affected known chests;
+those memories remain subject to the normal observation-sharing setting.
+
+GPT can return a temporary proposal containing exact item keys and known chest
+names. **Review sort** and the header's **Sort chests** button use the same active
+proposal, which remains in session memory and is not restored after a restart.
+It cannot move items without **Confirm sort**. Unassigned items stay untouched.
+Before transferring, **Remember choices for future sorting** can save the entire
+validated batch as character memories, with an Undo receipt. This action is
+separate from transfer confirmation, observes the 32-entry total memory limit,
+and saves no partial batch if validation or capacity fails. Saved choices follow
+the normal Memory sharing control described above, independently of observation
+sharing. Use Save & Quit to retain them with the character.
+
+Known chest identity tokens are saved locally with world/character mod data so
+an observed chest can be recognized after restarting. These tokens, tile styles
+and coordinates are excluded from GPT's observation projection. Actual local
+placement/removal events update the registry without scanning hidden storage.
+Previously known chests need no reopening solely because the game restarted;
+remembered contents can still be stale, and actual destinations are checked
+locally when you request a preview.
 
 ChatGPT sign-in credentials and optional API keys are encrypted for the current
 Windows account and stored separately from normal mod settings, under
@@ -72,10 +135,14 @@ the `.tmod` alone is not a request to erase saved player data or credentials.
 ## Fair-play boundary
 
 The assistant can provide general public game knowledge regardless of what you
-have discovered. It cannot inspect hidden world data or perform game actions.
-There are no assistant tools for spawning, killing, teleporting, changing items,
-or editing progress. Accepting a goal adds a note; checking a manual step changes
-that note, not the game world.
+have discovered. It cannot inspect hidden world data or execute game actions.
+There are no assistant tools for spawning, killing, teleporting, editing item
+attributes, or changing progress. Accepting a goal adds a note; checking a manual
+step changes that note, not the game world. The separate **Sort chests** feature
+can transfer items only after the user reviews a local preview and clicks
+**Confirm sort**. Model replies, web pages and typed commands cannot approve it.
+Protected slots and favorites remain untouched; unknown or unsuitable storage
+does not become a destination. Multiplayer sorting is disabled.
 
 Before sharing a diagnostic log, remove private questions, account information,
 credentials, and any player/world details. The project's live test is opt-in and

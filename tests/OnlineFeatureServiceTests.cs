@@ -28,6 +28,11 @@ public static partial class AssistantServiceTests
             Require(root.GetProperty("webSearch").GetBoolean(), "Search setting absent.");
             Equal(3, observations.GetProperty("inventory")[0].GetProperty("count").GetInt32());
             Equal("account", observations.GetProperty("achievements")[0].GetProperty("scope").GetString());
+            JsonElement mood = observations.GetProperty("npcHappiness")[0];
+            Equal("Terraria/Merchant", mood.GetProperty("key").GetString());
+            Equal(89d, mood.GetProperty("pricePercent").GetDouble());
+            Equal(-11d, mood.GetProperty("priceChangePercent").GetDouble());
+            Require(!mood.GetProperty("isCurrent").GetBoolean(), "Remembered NPC reading became current.");
             Require(!root.GetRawText().Contains("tile 123, 456", StringComparison.Ordinal), "Coordinate chest label escaped projection.");
             Require(!root.GetRawText().Contains("PRIVATE-", StringComparison.Ordinal), "Legacy private fixture escaped.");
             Equal(0, root.GetProperty("knowledge").GetProperty("inventory").GetArrayLength());
@@ -108,5 +113,9 @@ public static partial class AssistantServiceTests
         new[] { new ProgressFlag("king_slime", "King Slime", true, "world") },
         Array.Empty<ProgressFlag>(), new[] { new ProgressFlag("TEST", "Test achievement", true, "account") },
         new[] { new ProgressSubject("Terraria/Forest", "Forest") },
-        new[] { new NpcProgress("Terraria/Guide", "Guide", true, false) }, new[] { "Forest" });
+        new[] { new NpcProgress("Terraria/Guide", "Guide", true, false) }, new[] { "Forest" })
+        {
+            NpcHappiness = new[] { new NpcHappinessObservation("Terraria/Merchant", "Merchant", 0.89,
+                "I like the Forest.", DateTimeOffset.UnixEpoch, false, new[] { "Forest" }) }
+        };
 }

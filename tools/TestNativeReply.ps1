@@ -12,7 +12,7 @@ $sourcePaths = @(
     'Common\Services\GoalProposalReader.cs',
     'Common\Services\WebCitation.cs',
     'Common\Native\NativeChatException.cs',
-    'Common\Native\NativeReplyParser.cs',
+    'Common\Native\NativeReplyParser.cs','Common\Sorting\SortSuggestion.cs','Common\Native\NativeMemoryProtocol.cs','Common\Memory\MemoryModels.cs',
     'tests\NativeReplyTests.cs'
 ) | ForEach-Object { Join-Path $taskRoot $_ }
 Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Stop

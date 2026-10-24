@@ -30,7 +30,9 @@ internal sealed class GoalNotesPanel
     private static bool CanShow => !Main.dedServ && !Main.gameMenu && !Main.mapFullscreen && !Main.hideUI
         && !Main.editSign && !Main.editChest && !Main.ingameOptionsWindow
         && !Main.inFancyUI && Main.CurrentInputTextTakerOverride is null && !Main.LocalPlayer.dead
-        && Main.LocalPlayer.talkNPC < 0;
+        && Main.LocalPlayer.talkNPC < 0
+        && !ModContent.GetInstance<GptChatSystem>().ChestSortModalOpen
+        && !ModContent.GetInstance<GptChatSystem>().MemoryModalOpen;
 
     public void Reset()
     {

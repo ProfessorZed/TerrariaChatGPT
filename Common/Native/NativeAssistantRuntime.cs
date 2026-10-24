@@ -73,12 +73,12 @@ public sealed class NativeAssistantRuntime : IDisposable
 
     public static Task<NativeChatReply> AskAsync(string question, KnowledgeSnapshot knowledge,
         IReadOnlyList<ConversationTurn> conversation, GptProvider provider, bool webSearch,
-        object? observedContext, CancellationToken cancellation, string chatGptModel = "", string chatGptEffort = "") =>
-        Current.AskCoreAsync(question, knowledge, conversation, provider, webSearch, observedContext, cancellation, chatGptModel, chatGptEffort);
+        object? observedContext, CancellationToken cancellation, string chatGptModel = "", string chatGptEffort = "", object? savedMemory = null) =>
+        Current.AskCoreAsync(question, knowledge, conversation, provider, webSearch, observedContext, cancellation, chatGptModel, chatGptEffort, savedMemory);
 
     private async Task<NativeChatReply> AskCoreAsync(string question, KnowledgeSnapshot knowledge,
         IReadOnlyList<ConversationTurn> conversation, GptProvider provider, bool webSearch,
-        object? observedContext, CancellationToken cancellation, string chatGptModel, string chatGptEffort)
+        object? observedContext, CancellationToken cancellation, string chatGptModel, string chatGptEffort, object? savedMemory)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _lifetime.Token);
         linked.CancelAfter(TimeSpan.FromSeconds(ChatGptEffortOptions.RuntimeTimeoutSeconds(provider == GptProvider.ChatGPT ? chatGptEffort : "")));
@@ -95,7 +95,8 @@ public sealed class NativeAssistantRuntime : IDisposable
         if (string.IsNullOrEmpty(token))
             throw new NativeChatException("api_key", "Save an OpenAI API key in mod settings, or choose ChatGPT to use your connected account.");
         return await _responses.AskAsync(question, conversation, knowledge.GameVersion, observedContext,
-            webSearch, token, provider == GptProvider.ChatGPT, stop, chatGptModel: chatGptModel, chatGptEffort: chatGptEffort).ConfigureAwait(false);
+            webSearch, token, provider == GptProvider.ChatGPT, stop, chatGptModel: chatGptModel, chatGptEffort: chatGptEffort,
+            tModLoaderVersion: knowledge.TModLoaderVersion, savedMemory: savedMemory).ConfigureAwait(false);
     }
 
     public void Dispose()

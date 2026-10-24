@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Terraria.ModLoader.IO;
 using TerrariaChatGPT.Common.Knowledge;
@@ -14,11 +15,43 @@ internal sealed class WorldGoalLedger
     public IReadOnlyList<GoalNote> NoteView { get; }
     public WorldGoalLedger() { NoteView = Notes.AsReadOnly(); }
     public Dictionary<string, ProgressSubject> TalkedNpcs { get; } = new(StringComparer.Ordinal);
+    public const int MaximumHappinessRecords = 128;
+    public Dictionary<string, NpcHappinessObservation> NpcHappiness { get; } = new(StringComparer.Ordinal);
+
+    public bool RememberHappiness(string key, string name, double price, string report,
+        DateTimeOffset observedUtc, IReadOnlyList<string> biomes)
+    {
+        key = GoalPlanner.CleanText(key, 128);
+        name = GoalPlanner.CleanText(name, 100);
+        report = GoalPlanner.CleanText(report, 2000);
+        // Do not clamp modded modifiers to vanilla's range or mistake an uninitialized/
+        // disabled happiness result (empty report) for evidence of neutral happiness.
+        if (key.Length == 0 || name.Length == 0 || report.Length == 0 || !ValidHappinessPrice(price)
+            || observedUtc == default || observedUtc > DateTimeOffset.UtcNow.AddMinutes(5)) return false;
+        if (!NpcHappiness.ContainsKey(key) && NpcHappiness.Count >= MaximumHappinessRecords)
+            NpcHappiness.Remove(NpcHappiness.Values.OrderBy(value => value.LastObservedUtc).First().Key);
+        NpcHappiness[key] = new NpcHappinessObservation(key, name, price, report, observedUtc.ToUniversalTime(), false,
+            Array.AsReadOnly(biomes.Take(20).Select(value => GoalPlanner.CleanText(value, 80))
+                .Where(value => value.Length > 0).Distinct(StringComparer.Ordinal).ToArray()));
+        return true;
+    }
+
+    internal static bool ValidHappinessPrice(double price) => double.IsFinite(price) && price >= 0.01 && price <= 100;
+
+    public IReadOnlyList<NpcHappinessObservation> HappinessSnapshot(string? currentKey) =>
+        Array.AsReadOnly(NpcHappiness.Values.OrderByDescending(value => value.LastObservedUtc)
+            .Select(value => value with { IsCurrent = value.Key == currentKey }).ToArray());
 
     public TagCompound Save(string world) => new()
     {
         ["world"] = world,
         ["npcs"] = TalkedNpcs.Values.Select(npc => new TagCompound { ["key"] = npc.Key, ["name"] = npc.Name }).ToList(),
+        ["happiness"] = NpcHappiness.Values.Take(MaximumHappinessRecords).Select(value => new TagCompound
+        {
+            ["key"] = value.Key, ["name"] = value.Name, ["price"] = value.PriceAdjustment,
+            ["report"] = value.HappinessReport, ["observed"] = value.LastObservedUtc.ToString("O", CultureInfo.InvariantCulture),
+            ["biomes"] = value.ObservedBiomes.ToList()
+        }).ToList(),
         ["notes"] = Notes.Take(GoalPlanner.MaximumNotes).Select(note => new TagCompound
         {
             ["id"] = note.Id, ["title"] = note.Title, ["signature"] = note.Signature,
@@ -58,6 +91,21 @@ internal sealed class WorldGoalLedger
         {
             string key = GoalPlanner.CleanText(npc.GetString("key"), 128), name = GoalPlanner.CleanText(npc.GetString("name"), 100);
             if (key.Length > 0 && name.Length > 0) ledger.TalkedNpcs[key] = new ProgressSubject(key, name);
+        }
+        // A corrupt happiness entry must not discard the character's goals or other observations.
+        IList<TagCompound> happiness;
+        try { happiness = tag.GetList<TagCompound>("happiness"); }
+        catch (Exception) { happiness = Array.Empty<TagCompound>(); }
+        foreach (TagCompound saved in happiness.Take(MaximumHappinessRecords))
+        {
+            try
+            {
+                if (!DateTimeOffset.TryParseExact(saved.GetString("observed"), "O", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out DateTimeOffset observed)) continue;
+                ledger.RememberHappiness(saved.GetString("key"), saved.GetString("name"), saved.GetDouble("price"),
+                    saved.GetString("report"), observed, saved.GetList<string>("biomes").ToArray());
+            }
+            catch (Exception) { /* Skip malformed local evidence without inventing a replacement. */ }
         }
         foreach (TagCompound saved in tag.GetList<TagCompound>("notes").Take(GoalPlanner.MaximumNotes))
         {

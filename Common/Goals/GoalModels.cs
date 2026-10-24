@@ -13,9 +13,14 @@ public sealed record GoalProposal(string Title, IReadOnlyList<GoalStepDefinition
 public sealed record ProgressItem(string ItemKey, string Name, int Stack, string Location, bool CanUseForCrafting);
 public sealed record RememberedProgressItem(string ItemKey, string Name, int Stack, string ChestLabel,
     DateTimeOffset LastObservedUtc, bool IsCurrentlyOpen);
+public sealed record KnownProgressChest(string Name, DateTimeOffset LastObservedUtc);
 public sealed record ProgressFlag(string Key, string Name, bool Completed, string Scope);
 public sealed record ProgressSubject(string Key, string Name);
 public sealed record NpcProgress(string Key, string Name, bool TalkedTo, bool Rescued);
+/// <summary>The game's cached happiness result for a conversation the player actually opened.
+/// ObservedBiomes describe the player's visible zones, not an inspected NPC home.</summary>
+public sealed record NpcHappinessObservation(string Key, string Name, double PriceAdjustment,
+    string HappinessReport, DateTimeOffset LastObservedUtc, bool IsCurrent, IReadOnlyList<string> ObservedBiomes);
 
 /// <summary>Detached observations only. No world identity, coordinates, seed or entity references.</summary>
 public sealed record ProgressSnapshot(DateTimeOffset CapturedAtUtc,
@@ -26,7 +31,11 @@ public sealed record ProgressSnapshot(DateTimeOffset CapturedAtUtc,
     IReadOnlyList<ProgressFlag> Achievements,
     IReadOnlyList<ProgressSubject> VisitedBiomes,
     IReadOnlyList<NpcProgress> KnownNpcs,
-    IReadOnlyList<string> CurrentBiomes);
+    IReadOnlyList<string> CurrentBiomes)
+{
+    public IReadOnlyList<NpcHappinessObservation> NpcHappiness { get; init; } = Array.Empty<NpcHappinessObservation>();
+    public IReadOnlyList<KnownProgressChest> KnownChests { get; init; } = Array.Empty<KnownProgressChest>();
+}
 
 public sealed class GoalStepState
 {

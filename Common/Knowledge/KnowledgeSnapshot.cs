@@ -23,6 +23,11 @@ public sealed record OwnedChestSnapshot(
     IReadOnlyList<ItemStackSnapshot> Items)
 {
     public bool IsCurrentlyOpen { get; init; }
+    // Local validation fields; excluded from the assistant's context projection.
+    public string StorageIdentity { get; init; } = "";
+    public int TileType { get; init; } = -1;
+    public int TileFrameX { get; init; }
+    public int TileFrameY { get; init; }
 }
 
 public sealed record KnowledgeFact(string Id, string SubjectKey, string Text, string Source);
@@ -59,4 +64,5 @@ public sealed record KnowledgeSnapshot(
     public bool RecipeLookupComplete { get; init; }
     public bool InventoryShared { get; init; } = true;
     public string GameVersion { get; init; } = "";
+    public string TModLoaderVersion { get; init; } = "";
 }

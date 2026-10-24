@@ -1,6 +1,7 @@
-# Terraria ChatGPT 0.9.2 acceptance checks
+# Terraria ChatGPT 0.9.9 acceptance checks
 
 These are manual expectations, not a claim of completed gameplay testing.
+Publication does not imply that every manual check below has been performed.
 See [the changelog](../CHANGELOG.md) for release scope. Record actual compiler,
 automated, live-provider, and gameplay results separately when verifying a release.
 
@@ -20,6 +21,70 @@ observations and dummy credentials for payload inspection; never log real secret
 | General topic | Ask about seasons or another unrelated topic. | Normal answer; no irrelevant inventory dump or goal proposal. |
 | Follow-up | Ask a question, follow with “why?”, then change subject. | Recent conversation works without forcing a stale item topic. |
 | Readability | Request a recipe/location answer, resize, scroll. | Cyan items, gold locations, green observed supplies/orange deficits, readable timestamps and wrapping. |
+
+## NPC happiness and version context
+
+| Check | Procedure | Expected |
+| --- | --- | --- |
+| First observation | Speak to a town NPC, close dialogue and ask its price modifier. | Actual observed multiplier, discount/markup arithmetic and remembered status; no guessed reading. |
+| Unknown NPC | Ask about an NPC not spoken to since updating. | No invented price. General preferences remain answerable. |
+| Refresh housing | Change housing normally, speak to the NPC again, then ask. | New game-computed reading replaces the old one; the mod makes no housing changes. |
+| Shop switch | Speak to two NPCs with different modifiers in succession. | Each reading belongs to the correct NPC; a closed shop is not recorded as neutral. |
+| Restart/world switch | Save, re-enter, and change worlds/characters. | Remembered reading persists only for its character/world and never returns as currently observed. |
+| Advice | Ask how to improve an unhappy NPC. | Explains observed causes; distinguishes general recommendations from unobserved housing details and predicted prices. |
+| Version | Ask the current Terraria version and a version-sensitive question. | Running Terraria and tModLoader versions are distinct; mechanics and searches default to the Terraria version. |
+| Sharing off | Disable observation sharing and ask about version and NPCs. | Version remains available; no NPC readings are sent. |
+
+## Contextual memory
+
+| Check | Procedure | Expected |
+| --- | --- | --- |
+| Natural preference | Say “I prefer concise bullet-point answers” without a remember command. | Useful answer and a visible Memory saved notice if validated; manager shows the preference. |
+| Context correction | Discuss Gel sorting, then say “Actually, classify it as Block for future sorting instead.” | Resolves the user-mentioned item, replaces its rule, and shows the saved change. |
+| Edit saved memory | After restarting with a single Goodie Bag rule, say “Actually, change that sorting preference to Consumables instead.” | Replaces the same entry with a visible update and Undo. Ambiguous references ask which rule. |
+| Add preference detail | Save concise answers, then say “Update my answer style preference to also use bullet points.” | Revised entry preserves concise answers and adds bullets. |
+| Combined label | Say “Sort my Goodie Bag into Vanity” with a known Vanity & Paints chest. | Saves Category: Vanity, and preview targets the combined label if nearby and eligible. |
+| Item family | Say “Sort my grappling hooks into Travel.” | Applies to all supported grappling hooks, not raw Hook material. Exact item exceptions win. |
+| Temporary state | Mention current stock, a boss defeat or a one-time crafting goal. | No permanent inventory/progress fact; normal answer/goal functionality remains. |
+| Questions/quotes | Ask “How many Gel do I have?” after a sorting discussion; quote another person's preference. | Does not resurrect a historical rule or learn a quoted preference. |
+| Restart/scope | Save & Quit, restart, use the same character in another world, then switch characters. | Original character retains memory; another character has its own entries. |
+| Undo/remove | Undo the latest save or remove a manager entry while an answer is pending. | Correct record is reverted/removed; old request and conversational copies cannot re-add it. |
+| Pause | Pause Memory, ask a question, then preview sorting. | No memory payload or learning; normal category matching returns; saved entries remain reviewable. |
+| Clear | Click Clear all once, cancel; then click twice deliberately. | First attempt leaves data; confirmed second action removes all entries. |
+| Sort override | Save an exact-item category or custom chest-name rule and preview. | Preferred destination appears only if eligible; Confirm sort still required and protections hold. |
+| Missing destination | Remove/rename/move beyond the preferred chest after saving a rule. | Item stays with a recommendation; no fallback into an unrelated chest. |
+| Bad data | Test unknown/ambiguous item IDs, malformed metadata/save rows and obvious secrets. | Safe rejection; ordinary reply and character loading survive. |
+| Clear chat | Use `/clear`, then ask about a saved preference. | Chat context cleared; saved memory remains until explicitly removed or paused. |
+
+## Named-chest sorting
+
+| Check | Procedure | Expected |
+| --- | --- | --- |
+| Preview first | In single-player, open and close named storage, then click Sort chests in GPT chat. | Shows item quantities and destination names; no items move. |
+| Original mismatch | With known Tools & Travel and Consumables chests, ask “Categorise them according to my chests” for Amethyst Hook, Magic Mirror, Money Trough, Shadow Key, Blue Jellyfish Kite and Defender Medal. | Validated choices produce Review sort; preview uses the chosen exact chest names, not an unrelated default category match. No transfer occurs from the reply. |
+| Header parity | Open Review sort, cancel, then use the header Sort chests button. | Both show the latest accepted choices. Refresh keeps the same mapping. |
+| Contextual correction | Follow a sorting answer with “Actually, put those in Tools & Travel” or “Use Consumables instead.” | Uses recent context to propose a revised reviewable plan; rejected/ambiguous metadata cannot move items. |
+| Partial proposal | Return valid assignments for only some eligible item keys. | Unassigned items stay in inventory; no generic fallback fills omitted assignments. |
+| Whole-batch memory | Click Remember choices before Confirm, with more than three valid assignments. | All validated choices save as exact item/chest preferences within the 32-entry total; visible receipt and one Undo. No items move. |
+| Memory limit/failure | Try a batch exceeding remaining memory capacity, containing a stale eligible key, or naming unknown storage. | No partial memory writes and no transfers; clear status explains the failure. |
+| Save then confirm | Remember choices, then deliberately click Confirm sort. | The same destinations have a refreshed preview; only the separate confirmation transfers items. |
+| Remembered restart | Remember choices, Save & Quit, restart and load the same character; use the header sorter without re-asking. | Saved preferences remain; known destinations need no reopening. A different character does not inherit the rules. |
+| Temporary restart | Review choices without remembering, then restart. | Temporary plan is gone; no silent permanent preferences. Normal local sorting remains available. |
+| Plan expiration | Supersede a plan, clear chat, change world/character, then click its old reply button. | Old choices cannot reopen. Successful confirmation consumes a plan while its result stays visible. |
+| Short viewport | Review at 640×360 and 480×270; scroll to blocked destinations and use separate buttons. | Remember/Refresh/Cancel/Confirm do not overlap; item/chest names remain readable, wheel cannot skip unread rows, Confirm is disabled when nothing can move. |
+| Explicit action | Type “sort my inventory” or “Confirm sort”; press Enter with a preview open. | Chat cannot authorize a transfer; only clicking the visible Confirm sort button can apply the preview. |
+| Correct categories | Preview Glass, bars, weapons, paint and consumables with suitable named chests nearby. | Uses an appropriate recognized category or an exact item-name chest; existing chest items stay in their slots. |
+| No destination | Preview an item without a suitable chest, including with a Misc chest nearby. | Leaves it in inventory, flags it under Stay in inventory and suggests a chest name. No Misc fallback. |
+| Full storage | Fill the matching chest; include another unrelated empty chest. | Explains the capacity issue and leaves the remainder in inventory. |
+| Protected slots | Include hotbar items, favorites, equipment, dedicated ammo/coins, personal-bank and cursor items. | Protected items stay untouched; holding a cursor item or having a chest/bank open blocks preview. |
+| Modded item state | Use synthetic custom/global item fixtures. | Whole original stack moves only into an empty slot; no merging, splitting or item-data cloning hooks. |
+| Stale preview | After preview, change a bag stack, favorite, chest name/content, chest tile, world or character; move out of range. | Confirmation cancels with no transfer and asks for a fresh preview. |
+| Range | Test chest centers just inside, at, and outside 600 pixels from player center. | Only strictly inside vanilla Quick Stack range is eligible. |
+| Known storage | Include unopened, locked, in-use, removed/replaced and ignored chests. Restart with previously opened or player-placed destinations. | Unknown/invalid destinations excluded; known eligible chests need no reopening after restart. |
+| Repeat/cancel | Double-click, hold the mouse, resize before clicking, cancel with Escape, close chat or leave the world. | No replay, stale hitbox or click-through; cancel never moves items. |
+| Leftovers | Confirm a mixed preview with movable and unmatched items. | Success keeps the leftover list and chest recommendations visible. |
+| Offline/sharing off | Disconnect the AI connection or disable observation sharing. | Local sorting and enabled saved preferences still work; no new GPT destination plan without shared eligible-item/chest context. Local transfer previews and storage identifiers are not sent online. |
+| Multiplayer/custom storage | Attempt in multiplayer or with a Magic Storage network. | No transfer; first release supports ordinary named single-player chests only. |
 
 ## Goal acceptance and controls
 

@@ -6,7 +6,7 @@ $sourcePaths = @(
     'Common\Knowledge\KnowledgeSnapshot.cs',
     'Common\Knowledge\LocalKnowledgeAnswer.cs',
     'Common\Knowledge\CraftingPlanner.cs',
-    'Common\Knowledge\WorldKnowledgeLedger.cs',
+    'Common\Knowledge\WorldKnowledgeLedger.cs', 'Common\Knowledge\KnownChestIdentitySystem.cs',
     'Common\Players\GptKnowledgePlayer.cs',
     'Common\Players\LegacyPlayerData.cs',
     'Common\Goals\GoalModels.cs',
@@ -21,3 +21,4 @@ Add-Type -Path $sourcePaths -CompilerOptions '/nullable:enable' -ErrorAction Sto
 $results = [TerrariaChatGPT.Tests.GoalProgressTests]::Run()
 $results | ForEach-Object { Write-Output $_ }
 Write-Output "Passed $($results.Count) guarded goal/progress checks."
+

@@ -25,6 +25,11 @@ public sealed class GptProgressPlayer : ModPlayer
     private KnowledgeSnapshot? _knowledge;
     private int _refreshTicks;
     private bool _legacyDataChecked;
+    private NPC? _observedHappinessNpc;
+    private int _observedHappinessType;
+    private double _observedHappinessPrice;
+    private string? _observedHappinessReport;
+    private string? _currentHappinessKey;
     private bool IsLocal => !Main.dedServ && !Main.gameMenu && Player.whoAmI == Main.myPlayer;
     public IReadOnlyList<GoalNote> ActiveGoals => IsLocal ? CurrentLedger.NoteView : Array.Empty<GoalNote>();
 
@@ -37,6 +42,7 @@ public sealed class GptProgressPlayer : ModPlayer
         _knowledge = null;
         _refreshTicks = 0;
         _legacyDataChecked = false;
+        ClearCurrentHappiness();
     }
 
     public override void OnEnterWorld()
@@ -46,6 +52,7 @@ public sealed class GptProgressPlayer : ModPlayer
         _snapshot = null;
         _knowledge = null;
         _refreshTicks = 0;
+        ClearCurrentHappiness();
         if (!IsLocal) return;
         EnsureLegacyData();
         Refresh();
@@ -55,7 +62,10 @@ public sealed class GptProgressPlayer : ModPlayer
 
     public override void PostUpdate()
     {
-        if (!IsLocal) return;
+        if (!IsLocal) { ClearCurrentHappiness(); return; }
+        // A short NPC conversation must not be missed by the heavier one-second
+        // progress refresh. This only compares that single active conversation.
+        ObserveNpcHappiness();
         if (++_refreshTicks < 60) return;
         _refreshTicks = 0;
         Refresh();
@@ -68,6 +78,7 @@ public sealed class GptProgressPlayer : ModPlayer
         EnsureLegacyData();
         // Accessing the ledger invalidates observations if the world changed.
         _ = CurrentLedger;
+        ObserveNpcHappiness();
         if (_snapshot is null) Refresh();
         return _snapshot!;
     }
@@ -112,6 +123,8 @@ public sealed class GptProgressPlayer : ModPlayer
     public override void SaveData(TagCompound tag)
     {
         EnsureLegacyData();
+        if (IsLocal) ObserveNpcHappiness();
+        // Happiness is an optional additive field; the existing goal schema stays compatible.
         tag["version"] = 1;
         tag["worlds"] = _worlds.Select(pair => pair.Value.Save(pair.Key)).ToList();
     }
@@ -151,6 +164,7 @@ public sealed class GptProgressPlayer : ModPlayer
             _activeLedger = ledger;
             _snapshot = null;
             _knowledge = null;
+            ClearCurrentHappiness();
             return ledger;
         }
     }
@@ -158,6 +172,7 @@ public sealed class GptProgressPlayer : ModPlayer
     private void Refresh()
     {
         WorldGoalLedger ledger = CurrentLedger;
+        ObserveNpcHappiness();
         _knowledge = Player.GetModPlayer<GptKnowledgePlayer>().CreateSnapshot();
         // TalkNPC resolves only the NPC the player is currently interacting with.
         NPC? talked = Player.TalkNPC;
@@ -199,8 +214,90 @@ public sealed class GptProgressPlayer : ModPlayer
                 item.Stack, SafeChestLabel(chest.Label), chest.LastObservedUtc, chest.IsCurrentlyOpen))).ToArray()),
             Array.AsReadOnly(bosses), Array.AsReadOnly(worldProgress), Array.AsReadOnly(achievements),
             Array.AsReadOnly(_knowledge.KnownSubjects.Where(subject => subject.Kind == "biome").Select(subject => new ProgressSubject(subject.Key, subject.Name)).ToArray()),
-            npcs.AsReadOnly(), Array.AsReadOnly(_knowledge.CurrentBiomes.ToArray()));
+            npcs.AsReadOnly(), Array.AsReadOnly(_knowledge.CurrentBiomes.ToArray()))
+        {
+            NpcHappiness = ledger.HappinessSnapshot(_currentHappinessKey),
+            KnownChests = Array.AsReadOnly(_knowledge.OwnedChests
+                .Where(chest => !string.IsNullOrWhiteSpace(chest.Label) && !chest.Label.StartsWith("Chest at tile ", StringComparison.OrdinalIgnoreCase))
+                .Select(chest => new KnownProgressChest(SafeChestLabel(chest.Label), chest.LastObservedUtc)).ToArray())
+        };
         RefreshNotes();
+    }
+
+    private void ObserveNpcHappiness()
+    {
+        WorldGoalLedger ledger = CurrentLedger;
+        NPC? talked = Player.TalkNPC;
+        // SetTalkNPC synchronously assigns currentShoppingSettings for the new NPC
+        // before returning (verified against the installed 1.4.4 tML assembly).
+        // Reading here/on chat submission runs on the game thread, after that call.
+        // Never call GetShoppingSettings: it recomputes mood by inspecting residents.
+        bool applicable = talked is { active: true, townNPC: true }
+            && talked.type >= 0 && talked.type < NPCID.Sets.NoTownNPCHappiness.Length
+            && !NPCID.Sets.NoTownNPCHappiness[talked.type]
+            && talked.type < NPCID.Sets.IsTownPet.Length && !NPCID.Sets.IsTownPet[talked.type];
+        ShoppingSettings settings = Player.currentShoppingSettings;
+        if (!applicable || Main.remixWorld || !WorldGoalLedger.ValidHappinessPrice(settings.PriceAdjustment)
+            || string.IsNullOrWhiteSpace(settings.HappinessReport))
+        {
+            if (_currentHappinessKey is not null)
+            {
+                ClearCurrentHappiness();
+                UpdateHappinessSnapshot(ledger);
+            }
+            return;
+        }
+
+        if (ReferenceEquals(talked, _observedHappinessNpc) && talked!.type == _observedHappinessType
+            && settings.PriceAdjustment == _observedHappinessPrice && settings.HappinessReport == _observedHappinessReport)
+            return;
+        ClearCurrentHappiness();
+        string key = GoalPlanner.CleanText(NpcKey(talked!), 128);
+        if (ledger.RememberHappiness(key, talked!.TypeName, settings.PriceAdjustment, settings.HappinessReport,
+            DateTimeOffset.UtcNow, ObservedPlayerBiomes()))
+        {
+            _observedHappinessNpc = talked;
+            _observedHappinessType = talked.type;
+            _observedHappinessPrice = settings.PriceAdjustment;
+            _observedHappinessReport = settings.HappinessReport;
+            _currentHappinessKey = key;
+            ledger.TalkedNpcs[key] = new ProgressSubject(key, GoalPlanner.CleanText(talked.TypeName, 100));
+        }
+        UpdateHappinessSnapshot(ledger);
+    }
+
+    private void UpdateHappinessSnapshot(WorldGoalLedger ledger)
+    {
+        if (_snapshot is not null) _snapshot = _snapshot with
+        { CapturedAtUtc = DateTimeOffset.UtcNow, NpcHappiness = ledger.HappinessSnapshot(_currentHappinessKey) };
+    }
+
+    private void ClearCurrentHappiness()
+    {
+        if (_currentHappinessKey is not null && _snapshot is not null)
+            _snapshot = _snapshot with { CapturedAtUtc = DateTimeOffset.UtcNow, NpcHappiness = Array.AsReadOnly(_snapshot.NpcHappiness
+                .Select(value => value with { IsCurrent = false }).ToArray()) };
+        _observedHappinessNpc = null;
+        _observedHappinessType = 0;
+        _observedHappinessPrice = 0;
+        _observedHappinessReport = null;
+        _currentHappinessKey = null;
+    }
+
+    private IReadOnlyList<string> ObservedPlayerBiomes()
+    {
+        var biomes = new List<string>();
+        void Add(bool active, string name) { if (active) biomes.Add(name); }
+        Add(Player.ZoneForest, "Forest"); Add(Player.ZoneDesert, "Desert");
+        Add(Player.ZoneUndergroundDesert, "Underground Desert"); Add(Player.ZoneJungle, "Jungle");
+        Add(Player.ZoneSnow, "Snow"); Add(Player.ZoneBeach, "Ocean");
+        Add(Player.ZoneCorrupt, "Corruption"); Add(Player.ZoneCrimson, "Crimson");
+        Add(Player.ZoneHallow, "Hallow"); Add(Player.ZoneDungeon, "Dungeon");
+        Add(Player.ZoneGlowshroom, "Glowing Mushroom"); Add(Player.ZoneMeteor, "Meteorite");
+        Add(Player.ZoneGraveyard, "Graveyard"); Add(Player.ZoneShimmer, "Shimmer");
+        Add(Player.ZoneSkyHeight, "Space"); Add(Player.ZoneDirtLayerHeight, "Underground");
+        Add(Player.ZoneRockLayerHeight, "Cavern"); Add(Player.ZoneUnderworldHeight, "Underworld");
+        return biomes;
     }
 
     private static string SafeChestLabel(string label) => label.StartsWith("Chest at tile ", StringComparison.Ordinal)

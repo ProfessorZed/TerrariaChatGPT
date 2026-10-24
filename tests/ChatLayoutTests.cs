@@ -141,7 +141,8 @@ public static class ChatLayoutTests
             {
                 ChatPanelGeometry geometry = ChatPanelGeometry.Calculate(width, height, preferred, preferred);
                 foreach (ChatRect rectangle in new[] { geometry.Panel, geometry.Transcript, geometry.Input, geometry.TerrariaTab,
-                    geometry.GptTab, geometry.ConnectionBadge, geometry.ManageUsage, geometry.CopyAnswer })
+                    geometry.GptTab, geometry.ConnectionBadge, geometry.ManageUsage, geometry.CopyAnswer,
+                    geometry.SortChests, geometry.Memory, geometry.ModelSelector, geometry.EffortSelector })
                     Check(rectangle.Width >= 0 && rectangle.Height >= 0 && rectangle.X >= 0 && rectangle.Y >= 0 &&
                         (rectangle.Height == 0 || rectangle.Width == 0 || rectangle.Right <= width && rectangle.Bottom <= height),
                         $"Viewport {width}x{height}, preferred {preferred}: all visible rectangles fit.");
@@ -153,6 +154,10 @@ public static class ChatLayoutTests
         }
         ChatPanelGeometry normal = ChatPanelGeometry.Calculate(1920, 1080, 820, 390);
         Check(normal.Input.X == 78 && normal.Panel.Width == 820 && normal.Panel.Height == 390, "Normal layouts preserve vanilla chat alignment and requested size.");
+        ChatPanelGeometry minimum = ChatPanelGeometry.Calculate(1280, 720, 480, 390);
+        Check(minimum.Memory.Width > 0 && minimum.Memory.X >= minimum.Panel.X + 65
+            && minimum.Memory.Right < minimum.SortChests.X && minimum.SortChests.Right < minimum.CopyAnswer.X,
+            "Memory, Sort chests and Copy answer remain separate at minimum configured chat width.");
         return passed;
     }
 }

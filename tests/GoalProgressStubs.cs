@@ -12,14 +12,17 @@ namespace Terraria
         public static bool gameMenu;
         public static int myPlayer;
         public static int netMode;
-        public static int maxChests = 1000;
+        public static int maxChests = 1000, maxTilesX = 10000, maxTilesY = 10000; public static TileMap tile = new(); public static Player LocalPlayer = new();
         public static ChestReadSpy chest = new();
         public static Item mouseItem = new();
         public static WorldFileData ActiveWorldFileData = new();
         public static bool hardMode;
+        public static bool remixWorld;
         public static AchievementManager Achievements = new();
     }
 
+    public sealed class TileMap { public Tile this[int x,int y] => new() { HasTile = true, TileType = 21 }; }
+    public struct Tile { public bool HasTile; public ushort TileType; public short TileFrameX, TileFrameY; }
     public sealed class WorldFileData
     {
         public Guid UniqueId { get; set; }
@@ -46,6 +49,7 @@ namespace Terraria
 
     public sealed class Chest
     {
+        public static int FindChest(int x,int y) => -1;
         public int x;
         public int y;
         public string name = string.Empty;
@@ -54,6 +58,7 @@ namespace Terraria
 
     public sealed class Item
     {
+        public int createTile;
         public int type;
         public int stack;
         public string Name { get; set; } = string.Empty;
@@ -71,6 +76,7 @@ namespace Terraria
             return (T)player;
         }
         public NPC? TalkNPC { get; set; }
+        public ShoppingSettings currentShoppingSettings = new() { PriceAdjustment = 1, HappinessReport = "" };
         public int whoAmI;
         public string name = "Chest memory test character";
         public int chest = -1;
@@ -88,6 +94,8 @@ namespace Terraria
     public sealed class NPC
     {
         public bool active = true;
+        public bool townNPC = true;
+        public int createTile;
         public int type;
         public string TypeName = "";
         public Terraria.ModLoader.ModNPC? ModNPC;
@@ -96,6 +104,11 @@ namespace Terraria
             downedPlantBoss, downedGolemBoss, downedFishron, downedEmpressOfLight, downedAncientCultist,
             downedMoonlord, downedGoblins, downedPirates, downedFrost, downedMartians,
             savedGoblin, savedWizard, savedMech, savedStylist, savedAngler, savedTaxCollector, savedBartender, savedGolfer;
+    }
+    public struct ShoppingSettings
+    {
+        public double PriceAdjustment;
+        public string HappinessReport;
     }
     public sealed class AchievementManager
     {
@@ -121,6 +134,7 @@ namespace Terraria.ID
         public const int Server = 2;
     }
 
+    public static class TileID { public const int Containers = 21, Containers2 = 467; }
     public static class ItemID
     {
         public static ItemNameSearch Search { get; } = new();
@@ -128,6 +142,11 @@ namespace Terraria.ID
 
     public static class NPCID
     {
+        public static class Sets
+        {
+            public static bool[] NoTownNPCHappiness = new bool[1000];
+            public static bool[] IsTownPet = new bool[1000];
+        }
         public const int DD2Bartender = 550;
         public static NpcNameSearch Search { get; } = new();
     }
@@ -150,6 +169,8 @@ namespace Terraria.ID
 
 namespace Terraria.ModLoader
 {
+    public abstract class ModSystem { public virtual void ClearWorld() {} public virtual void PostUpdateWorld() {} public virtual void SaveWorldData(IO.TagCompound tag) {} public virtual void LoadWorldData(IO.TagCompound tag) {} }
+    public abstract class GlobalTile { public virtual void PlaceInWorld(int i, int j, int type, Terraria.Item item) {} public virtual void KillTile(int i, int j, int type, ref bool fail, ref bool effectOnly, ref bool noItem) {} }
     public class ModItem
     {
         public string FullName { get; set; } = "TestMod/TestItem";
@@ -174,6 +195,7 @@ namespace Terraria.ModLoader.IO
         public string GetString(string key) => TryGetValue(key, out object? value) ? (string)value : string.Empty;
         public int GetInt(string key) => TryGetValue(key, out object? value) ? (int)value : 0;
         public float GetFloat(string key) => TryGetValue(key, out object? value) ? (float)value : 0f;
+        public double GetDouble(string key) => TryGetValue(key, out object? value) ? (double)value : 0;
         public bool GetBool(string key) => TryGetValue(key, out object? value) && (bool)value;
         public bool TryGet<T>(string key, out T value)
         { if (TryGetValue(key, out object? raw) && raw is T typed) { value = typed; return true; } value = default!; return false; }
@@ -194,3 +216,4 @@ namespace TerrariaChatGPT.Common.Knowledge
         }
     }
 }
+

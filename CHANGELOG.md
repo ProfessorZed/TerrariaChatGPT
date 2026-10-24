@@ -1,5 +1,80 @@
 # Changelog
 
+## 0.9.9 — GPT sorting choices, persistent memory and world context
+
+This release includes the sorting, memory, NPC happiness and version-aware
+answers introduced in local builds 0.9.5–0.9.8 below.
+
+- Requests such as “Categorise them according to my chests” produce validated
+  item-to-chest choices, with **Review sort** below the answer. The header's
+  **Sort chests** button reviews the same active choices.
+- Refresh preserves those exact destinations. Unassigned, protected, out-of-range
+  or capacity-blocked items remain in inventory; only **Confirm sort** transfers
+  the reviewed items. Completed and stale plans cannot be replayed.
+- **Remember choices for future sorting** saves the reviewed batch before a
+  transfer, with a visible receipt and Undo. Saving is separate from moving items
+  and either saves the whole batch within the 32-entry memory limit or saves none.
+- Previously opened or placed chests remain known after normal saves/restarts;
+  no reopening is required just to make their names or identities available.
+- Improved short-screen previews and scrolling; exact blocked destinations remain
+  readable beside their reasons. Added concise 0.9.9 hover notes.
+
+## 0.9.8 — Local build: memory edits and smarter sorting
+
+- Patch-note and reply tooltips render above the Model/Effort controls.
+- Natural corrections update existing memories with a visible update notice and Undo.
+- Category preferences match combined chest labels: Vanity matches Vanity & Paints.
+- Item-family sorting rules support grappling hooks and travel/mobility destinations.
+- Previously opened or player-placed chests remain known across restarts; sorting
+  still checks the nearby destination and requires preview plus Confirm sort.
+- Empty known chest names can inform GPT with observation sharing enabled, without
+  exposing coordinates, hidden storage or claiming that a chest is nearby.
+- Existing category-like chest-name memories are corrected when their saved
+  evidence identifies a category. Explicit exact chest preferences stay exact.
+
+## 0.9.7 — Local build: contextual memory
+
+- Shows the loaded mod version in GPT chat; hover for concise patch notes.
+- Saved per-character preferences across worlds and normal character saves/restarts.
+- Contextual learning from ordinary chat, with source-grounded validation, bounded
+  topics/entries, replacement of old preferences and visible Memory saved/Undo.
+- Memory manager for review, individual removal, pause/resume and confirmed clear-all.
+- Remembered item category and exact chest-name corrections affect sorting previews
+  without bypassing transfer confirmation, range, capacity or item protection.
+- Reject transient state, one-off goals, obvious credentials and unsupported
+  item identities. Changed or removed memories invalidate old requests/previews.
+- Normal chat clearing preserves memory; forgetting/pause clears outgoing history
+  to prevent stale conversational copies from reappearing as memory.
+
+## 0.9.6 — Local build: named-chest sorting with a preview
+
+- Added **Sort chests** in GPT chat with an item/destination preview, explicit
+  **Confirm sort**, cancel and refresh controls. Typing a request cannot move items.
+- Routes eligible regular inventory items by named chest categories or dedicated
+  item names within the installed game's Quick Stack radius. Protects the hotbar,
+  favorites, equipment, dedicated coin/ammo slots, cursor and personal banks.
+- Keeps unmatched items in inventory, flags the reason and recommends a chest
+  name. Full or unsupported destinations never become an automatic dump target.
+- Revalidates inventory, chest identity/content, range, world and capacity before
+  committing the reviewed plan. Changed previews require another review.
+- Single-player only; destination chests must be opened in the current session.
+  Sorting stays local and does not grant the model game-action tools.
+- Prepared for local testing; no GitHub or Workshop release is implied.
+
+## 0.9.5 — Local build: NPC happiness and game versions
+
+- Records the happiness price multiplier and the game's own mood explanation
+  while interacting with an NPC. Keeps bounded memories for each character/world.
+- Shares current versus remembered readings and observation times with GPT, so it
+  can explain price changes and suggest version-appropriate housing improvements.
+  Missing observations are unknown, not assumed normal prices.
+- Captures Terraria's runtime version and tModLoader's runtime version separately
+  for every question, including when progress sharing is disabled. Answers and web
+  searches default to the running Terraria version rather than the newest release.
+- Keeps happiness data within the existing observation-sharing control. No hidden
+  NPC scans, housing edits, price changes, or new game-action tools are added.
+- Prepared for local testing; this entry does not indicate a GitHub or Workshop release.
+
 ## 0.9.4 — Model and effort controls in chat
 
 - Added model and effort pickers directly inside the GPT chat window. Selections

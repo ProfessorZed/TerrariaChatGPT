@@ -18,7 +18,7 @@ internal static class ChatScrollPosition
 
 internal readonly record struct ChatPanelGeometry(ChatRect Panel, ChatRect Transcript, ChatRect Input,
     ChatRect TerrariaTab, ChatRect GptTab, ChatRect ConnectionBadge, ChatRect ManageUsage, ChatRect CopyAnswer,
-    ChatRect ModelSelector, ChatRect EffortSelector)
+    ChatRect ModelSelector, ChatRect EffortSelector, ChatRect SortChests, ChatRect Memory = default)
 {
     public static ChatPanelGeometry Calculate(int screenWidth, int screenHeight, int preferredWidth, int preferredHeight)
     {
@@ -49,6 +49,8 @@ internal readonly record struct ChatPanelGeometry(ChatRect Panel, ChatRect Trans
         bool buttonsFit = width >= 250 && height >= 130;
         ChatRect usage = buttonsFit ? new(panel.Right - 128, panel.Bottom - 48, 114, 22) : default;
         ChatRect copy = buttonsFit ? new(panel.Right - 100, panel.Y + 9, 86, 24) : default;
+        ChatRect sort = buttonsFit ? new(copy.X - 100, copy.Y, 94, 24) : default;
+        ChatRect memory = width >= 360 && buttonsFit ? new(sort.X - 78, copy.Y, 72, 24) : default;
         ChatRect connection = height >= 85 ? new(panel.X + padding, panel.Bottom - 46,
             Math.Max(0, width - 2 * padding - (buttonsFit ? 124 : 0)), 20) : default;
         int toolbarWidth = Math.Max(0, width - 2 * padding);
@@ -57,6 +59,6 @@ internal readonly record struct ChatPanelGeometry(ChatRect Panel, ChatRect Trans
         ChatRect effort = toolbarFits ? new(model.Right + 8, model.Y, toolbarWidth - modelWidth - 8, 27) : default;
         return new(panel, transcript, input,
             new(tabX, tabsY, tabWidth, tabHeight),
-            new(tabX, tabsY + tabHeight + tabGap, tabWidth, tabHeight), connection, usage, copy, model, effort);
+            new(tabX, tabsY + tabHeight + tabGap, tabWidth, tabHeight), connection, usage, copy, model, effort, sort, memory);
     }
 }

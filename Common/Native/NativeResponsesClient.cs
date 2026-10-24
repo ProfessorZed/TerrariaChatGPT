@@ -14,6 +14,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.Memory;
 
 namespace TerrariaChatGPT.Common.Native;
 
@@ -58,7 +59,7 @@ public sealed class NativeResponsesClient : IDisposable
 
     public async Task<NativeChatReply> AskAsync(string question, IReadOnlyList<ConversationTurn> conversation,
         string gameVersion, object? observedContext, bool webSearch, string bearerToken, bool useChatGptPlan,
-        CancellationToken cancellation, string apiModel = "gpt-4o-mini", string chatGptModel = "", string chatGptEffort = "")
+        CancellationToken cancellation, string apiModel = "gpt-4o-mini", string chatGptModel = "", string chatGptEffort = "", string tModLoaderVersion = "", object? savedMemory = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         deadline.CancelAfter(TimeSpan.FromSeconds(ChatGptEffortOptions.InferenceTimeoutSeconds(useChatGptPlan ? chatGptEffort : "", webSearch)));
@@ -68,7 +69,8 @@ public sealed class NativeResponsesClient : IDisposable
             signal.ThrowIfCancellationRequested();
             ValidateBearer(bearerToken);
             // Validate the detached data before touching the network.
-            object[] input = NativeChatPrompt.BuildInput(question, conversation, gameVersion, observedContext);
+            object[] input = NativeChatPrompt.BuildInput(question, conversation, gameVersion, observedContext, tModLoaderVersion, savedMemory);
+            bool memoryEnabled = NativeChatPrompt.IsMemoryEnabled(savedMemory);
             if (useChatGptPlan && chatGptEffort != "" && !ChatGptEffortOptions.IsKnown(chatGptEffort))
                 throw new NativeChatException("invalid_effort", "Choose a supported effort in GPT chat, or choose Auto.");
             ChatGptModelOption? selected = useChatGptPlan ? await ModelAsync(bearerToken, chatGptModel, signal).ConfigureAwait(false) : null;
@@ -81,7 +83,7 @@ public sealed class NativeResponsesClient : IDisposable
                 ["instructions"] = NativeChatPrompt.SystemInstructions, ["input"] = input
             };
             // Plan usage explicitly forbids this API-only field.
-            if (!useChatGptPlan) payload["max_output_tokens"] = 2400;
+            if (!useChatGptPlan) payload["max_output_tokens"] = NativeChatPrompt.HasSortingCandidates(observedContext) ? 4800 : 2400;
             if (useChatGptPlan && chatGptEffort != "") payload["reasoning"] = new { effort = chatGptEffort };
             if (webSearch)
             {
@@ -99,8 +101,13 @@ public sealed class NativeResponsesClient : IDisposable
             using Stream body = await response.Content.ReadAsStreamAsync(signal).ConfigureAwait(false);
             StreamReply completed = await ReadStreamAsync(body, webSearch, useChatGptPlan, signal).ConfigureAwait(false);
             signal.ThrowIfCancellationRequested();
-            return NativeReplyParser.Parse(completed.Text, webSearch ? completed.Annotations : Array.Empty<NativeSourceAnnotation>(),
+            NativeChatReply reply = NativeReplyParser.Parse(completed.Text, webSearch ? completed.Annotations : Array.Empty<NativeSourceAnnotation>(),
                 webSearch && completed.Searched);
+            // Model output is only a proposal, never a permission or execution
+            // path. Disabled memory and evidence from other turns are refused.
+            return reply with { MemorySuggestions = memoryEnabled
+                ? reply.MemorySuggestions.Where(proposal => question.Contains(proposal.Evidence, StringComparison.Ordinal)).Take(3).ToArray()
+                : Array.Empty<MemoryProposal>() };
         }
         catch (NativeChatException) { throw; }
         catch (OperationCanceledException)

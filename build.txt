@@ -1,6 +1,6 @@
 displayName = Terraria ChatGPT
 author = ProfessorZed
-version = 0.9.4
+version = 0.9.9
 homepage = https://github.com/ProfessorZed/TerrariaChatGPT
 side = Client
 includeSource = false

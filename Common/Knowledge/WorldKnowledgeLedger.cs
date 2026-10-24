@@ -32,6 +32,10 @@ internal sealed class WorldKnowledgeLedger
             ["x"] = chest.TileX,
             ["y"] = chest.TileY,
             ["observed"] = chest.LastObservedUtc.ToString("O"),
+            ["identity"] = chest.StorageIdentity,
+            ["tileType"] = chest.TileType,
+            ["frameX"] = chest.TileFrameX,
+            ["frameY"] = chest.TileFrameY,
             ["items"] = chest.Items.Select(item => new TagCompound
             {
                 ["key"] = item.ItemKey,
@@ -72,7 +76,12 @@ internal sealed class WorldKnowledgeLedger
                     items.Add(new ItemStackSnapshot(key, item.GetString("name"), stack, item.GetString("location")));
             }
 
-            var chest = new OwnedChestSnapshot(saved.GetString("label"), saved.GetInt("x"), saved.GetInt("y"), observed, items.AsReadOnly());
+            var chest = new OwnedChestSnapshot(saved.GetString("label"), saved.GetInt("x"), saved.GetInt("y"), observed, items.AsReadOnly())
+            {
+                StorageIdentity = saved.GetString("identity"),
+                TileType = saved.ContainsKey("tileType") ? saved.GetInt("tileType") : -1,
+                TileFrameX = saved.GetInt("frameX"), TileFrameY = saved.GetInt("frameY")
+            };
             string chestKey = ChestKey(chest.TileX, chest.TileY);
             if (!ledger.IgnoredChests.Contains(chestKey))
                 ledger.RememberedChests[chestKey] = chest;

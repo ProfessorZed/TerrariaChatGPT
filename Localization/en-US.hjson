@@ -46,7 +46,7 @@ Mods: {
 
 				ShareObservedProgress: {
 					Label: Share observed progress with GPT
-					Tooltip: Share your items, opened-chest memories, recorded boss defeats, visited biomes, NPC conversations/rescues and account achievements. No hidden map, unopened chest or other-player data. Changing this clears remote conversation context. Goal notes still update locally when off.
+					Tooltip: Share your items, opened-chest memories, recorded boss defeats, visited biomes, NPC conversations/rescues, observed NPC happiness and account achievements. Speak to an NPC to refresh their happiness reading. No hidden map, unopened chest or other-player data. Changing this clears remote conversation context. Goal notes still update locally when off. Public game version numbers are always included.
 				}
 
 				ChatTextScale: {

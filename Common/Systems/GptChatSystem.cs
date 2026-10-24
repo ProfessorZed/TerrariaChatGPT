@@ -30,6 +30,8 @@ public sealed class GptChatSystem : ModSystem
     private static string? _requestedQuestion;
     private readonly GptChatPanel _panel = new();
     private readonly ChatModelToolbar _toolbar = new();
+    private readonly ChestSortPanel _chestSort = new();
+    private readonly MemoryPanel _memory = new();
     private readonly ReplyNotificationState _notifications = new();
     private readonly ReplyNotificationPanel _notificationPanel = new();
     private bool _gptSelected;
@@ -45,6 +47,8 @@ public sealed class GptChatSystem : ModSystem
     private string _copyStatus = "";
     private ulong _copyStatusUntil;
     internal bool IsGptOpen => !Main.gameMenu && Main.drawingPlayerChat && _gptSelected;
+    internal bool ChestSortModalOpen => _chestSort.OwnsPointer;
+    internal bool MemoryModalOpen => _memory.OwnsPointer;
 
     public override void Load()
     {
@@ -72,12 +76,17 @@ public sealed class GptChatSystem : ModSystem
 
     public override void PostUpdateInput()
     {
+        _chestSort.Update(IsGptOpen && !Main.editSign && !Main.editChest
+            && Main.CurrentInputTextTakerOverride is null);
+        _memory.Update(IsGptOpen && !Main.editSign && !Main.editChest
+            && Main.CurrentInputTextTakerOverride is null);
         ObserveReplies();
         _toolbar.Update(IsGptOpen, ModContent.GetInstance<GptClientConfig>(), GptAssistantService.Epoch);
         if (_conversationEpoch != GptAssistantService.Epoch)
         {
             _conversationEpoch = GptAssistantService.Epoch;
             _recall.Clear();
+            _chestSort.Close();
         }
         bool open = !Main.dedServ && !Main.gameMenu && Main.drawingPlayerChat && _gptSelected
             && ModContent.GetInstance<GptClientConfig>().Provider == GptProvider.ChatGPT;
@@ -156,6 +165,8 @@ public sealed class GptChatSystem : ModSystem
         _copyStatus = "";
         _panel.Reset();
         _toolbar.Reset();
+        _chestSort.Close();
+        _memory.Close();
         _notifications.Reset();
         _notificationPanel.Reset();
         StopConnectionPolling();
@@ -166,6 +177,8 @@ public sealed class GptChatSystem : ModSystem
     {
         if (Main.gameMenu)
         {
+            _chestSort.Update(false);
+            _memory.Update(false);
             orig();
             return;
         }
@@ -187,6 +200,8 @@ public sealed class GptChatSystem : ModSystem
         if (!Main.drawingPlayerChat || Main.editSign || Main.editChest ||
             Main.CurrentInputTextTakerOverride is not null)
         {
+            _chestSort.Update(false);
+            _memory.Update(false);
             orig();
             return;
         }
@@ -195,6 +210,25 @@ public sealed class GptChatSystem : ModSystem
         Point mouse = GetUiMouse();
         bool clicked = Main.mouseLeft && Main.mouseLeftRelease;
         bool switched = false;
+
+        if (_memory.IsOpen)
+        {
+            _memory.HandleInput(mouse, JustPressed(Keys.Escape),
+                JustPressed(Keys.PageUp) ? -1 : JustPressed(Keys.PageDown) ? 1 : 0);
+            Main.chatText = string.Empty;
+            Main.clrInput();
+            return;
+        }
+        if (_chestSort.IsOpen)
+        {
+            // This modal owns the complete gesture, including scrolling outside
+            // its bounds. No transcript links, goal notes or chat keys can act.
+            _chestSort.HandleInput(mouse, JustPressed(Keys.Escape),
+                JustPressed(Keys.PageUp) ? -1 : JustPressed(Keys.PageDown) ? 1 : 0);
+            Main.chatText = string.Empty;
+            Main.clrInput();
+            return;
+        }
 
         if (clicked && layout.TerrariaTab.Contains(mouse))
         {
@@ -240,6 +274,22 @@ public sealed class GptChatSystem : ModSystem
                 return;
             }
             Main.ClosePlayerChat();
+            Main.clrInput();
+            return;
+        }
+
+        if (clicked && layout.Memory.Contains(mouse))
+        {
+            _toolbar.Close();
+            _chestSort.Close();
+            _memory.Open();
+            Main.clrInput();
+            return;
+        }
+        if (clicked && layout.SortChests.Contains(mouse))
+        {
+            _toolbar.Close();
+            _chestSort.Open(GptAssistantService.LatestSortSuggestion);
             Main.clrInput();
             return;
         }
@@ -313,7 +363,11 @@ public sealed class GptChatSystem : ModSystem
             }
         }
 
-        if (clicked && _panel.HandleClick(mouse))
+        if (clicked && _panel.HandleClick(mouse, suggestion =>
+        {
+            _toolbar.Close();
+            _chestSort.Open(suggestion);
+        }))
         {
             Main.clrInput();
             return;
@@ -372,6 +426,10 @@ public sealed class GptChatSystem : ModSystem
             _connection, _connectionRequest is not null,
             Main.GameUpdateCount < _copyStatusUntil ? _copyStatus : "", _toolbar.Status);
         _toolbar.Draw(Main.spriteBatch, GptChatPanel.GetLayout());
+        _chestSort.Draw(Main.spriteBatch);
+        _memory.Draw(Main.spriteBatch);
+        if (!_chestSort.OwnsPointer && !_memory.OwnsPointer)
+            _panel.DrawTooltips(Main.spriteBatch);
     }
 
     private void SelectGpt()
@@ -389,6 +447,8 @@ public sealed class GptChatSystem : ModSystem
     private void SelectTerraria()
     {
         _toolbar.Close();
+        _chestSort.Close();
+        _memory.Close();
         if (_gptSelected)
         {
             _gptSelected = false;

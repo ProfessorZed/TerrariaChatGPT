@@ -11,8 +11,8 @@ using TerrariaChatGPT.Common.Knowledge;
 namespace TerrariaChatGPT.Common.Players;
 
 /// <summary>
-/// Local observations only. In particular, never iterate Main.chest: the single
-/// chest the player has open is the only world storage this component reads.
+/// Local observations only. Never iterate Main.chest. Contents are read only
+/// while open or after an explicitly confirmed nearby sorting transaction.
 /// </summary>
 public sealed class GptKnowledgePlayer : ModPlayer
 {
@@ -28,6 +28,12 @@ public sealed class GptKnowledgePlayer : ModPlayer
     private VisibleSlot[] _observedSlots = Array.Empty<VisibleSlot>();
     private DateTimeOffset _lastVisibleChestTime;
     private bool _legacyDataChecked;
+    // Live witnesses supplement persisted world tokens. A saved coordinate alone
+    // cannot authorize a replaced instance within the same visit.
+    private readonly Dictionary<string, Chest> _sortingOpenedChests = new(StringComparer.Ordinal);
+    internal Guid SortingSessionId { get; private set; } = Guid.NewGuid();
+    internal sealed record SortingChest(int X, int Y, Chest? Instance,
+        string Identity = "", string Label = "", int TileType = -1, int FrameX = 0, int FrameY = 0);
 
     private readonly record struct VisibleSlot(int Type, int Stack, string? Name, string? ModKey);
 
@@ -38,6 +44,7 @@ public sealed class GptKnowledgePlayer : ModPlayer
         _activeWorldId = null;
         _activeLedger = null;
         _legacyDataChecked = false;
+        ResetSortingSession();
         ClearOpenChestObservation();
     }
 
@@ -45,6 +52,7 @@ public sealed class GptKnowledgePlayer : ModPlayer
     {
         if (IsLocalPlayer)
         {
+            ResetSortingSession();
             EnsureLegacyData();
             Observe();
         }
@@ -69,13 +77,14 @@ public sealed class GptKnowledgePlayer : ModPlayer
     public override void SaveData(TagCompound tag)
     {
         EnsureLegacyData();
-        tag["version"] = 2;
+        tag["version"] = 3;
         tag["worlds"] = _worlds.Select(pair => pair.Value.Save(pair.Key)).ToList();
     }
 
     public override void LoadData(TagCompound tag)
     {
         _legacyDataChecked = true;
+        ResetSortingSession();
         ClearOpenChestObservation();
         _activeWorldId = null;
         _activeLedger = null;
@@ -141,6 +150,7 @@ public sealed class GptKnowledgePlayer : ModPlayer
         string key = WorldKnowledgeLedger.ChestKey(chest!.x, chest.y);
         ledger.IgnoredChests.Remove(key);
         ledger.RememberedChests[key] = captured;
+        _sortingOpenedChests[key] = chest!;
         return $"GPT is remembering {captured.Label}. Opened chests are remembered automatically; /gptclaim also resumes remembering a forgotten chest.";
     }
 
@@ -154,12 +164,92 @@ public sealed class GptKnowledgePlayer : ModPlayer
         WorldKnowledgeLedger ledger = CurrentLedger;
         string key = WorldKnowledgeLedger.ChestKey(chest!.x, chest.y);
         ledger.RememberedChests.Remove(key);
+        _sortingOpenedChests.Remove(key);
         ledger.IgnoredChests.Add(key);
         ClearOpenChestObservation();
         return "GPT forgot this chest and will skip it on future openings. Use /gptclaim while it is open to remember it again. Previously discovered item names remain known.";
     }
 
     private bool IsLocalPlayer => !Main.dedServ && Player.whoAmI == Main.myPlayer && !Main.gameMenu;
+
+    /// <summary>Detached known coordinates and identities; never reads closed storage.</summary>
+    internal IReadOnlyList<SortingChest> GetSortingChestCandidates()
+    {
+        if (!IsLocalPlayer || Main.netMode != NetmodeID.SinglePlayer)
+            return Array.Empty<SortingChest>();
+        WorldKnowledgeLedger ledger = CurrentLedger;
+        return ledger.RememberedChests.Where(pair => !ledger.IgnoredChests.Contains(pair.Key))
+            .Select(pair => new SortingChest(pair.Value.TileX, pair.Value.TileY, _sortingOpenedChests.GetValueOrDefault(pair.Key),
+                pair.Value.StorageIdentity, pair.Value.Label, pair.Value.TileType, pair.Value.TileFrameX, pair.Value.TileFrameY))
+            .ToArray();
+    }
+
+    /// <summary>Called after the sort button has checked range, lock and tile shape. Reads no contents.</summary>
+    internal bool BindSortingChest(SortingChest known, Chest chest, ushort tileType, short frameX, short frameY)
+    {
+        if (!IsLocalPlayer || Main.netMode != NetmodeID.SinglePlayer || chest.x != known.X || chest.y != known.Y) return false;
+        string key = WorldKnowledgeLedger.ChestKey(known.X, known.Y);
+        WorldKnowledgeLedger ledger = CurrentLedger;
+        if (ledger.IgnoredChests.Contains(key) || !ledger.RememberedChests.TryGetValue(key, out OwnedChestSnapshot? record)) return false;
+        if (known.Instance is not null && !ReferenceEquals(chest, known.Instance)) return false;
+        if (known.TileType >= 0 && (known.TileType != tileType || known.FrameX != frameX || known.FrameY != frameY)) return false;
+        if (known.Identity.Length > 0)
+        {
+            if (!string.Equals(KnownChestIdentitySystem.Existing(known.X, known.Y), known.Identity, StringComparison.Ordinal)) return false;
+        }
+        else if (known.Instance is null && !string.Equals(known.Label, chest.name, StringComparison.Ordinal))
+            // Legacy saves lack tokens. Require the remembered label on first
+            // nearby use before upgrading; no unseen contents are examined.
+            return false;
+        _sortingOpenedChests[key] = chest;
+        ledger.RememberedChests[key] = record with { StorageIdentity = KnownChestIdentitySystem.Ensure(known.X, known.Y),
+            TileType = tileType, TileFrameX = frameX, TileFrameY = frameY, Label = chest.name };
+        return true;
+    }
+
+    internal void RememberPlacedChest(int x, int y)
+    {
+        if (!IsLocalPlayer || Main.netMode != NetmodeID.SinglePlayer) return;
+        int index = Chest.FindChest(x, y);
+        if (index < 0 || index >= Main.maxChests) return;
+        Chest? chest = Main.chest[index];
+        if (chest is null || chest.x != x || chest.y != y) return;
+        WorldKnowledgeLedger ledger = CurrentLedger;
+        string key = WorldKnowledgeLedger.ChestKey(x, y);
+        ledger.IgnoredChests.Remove(key);
+        _sortingOpenedChests[key] = chest;
+        // Placement establishes ownership/location, not permission to inspect
+        // another mod's initial contents. Empty means "none observed" here.
+        ledger.RememberedChests[key] = WithIdentity(new OwnedChestSnapshot(
+            string.IsNullOrWhiteSpace(chest.name) ? $"Chest at tile {x}, {y}" : chest.name,
+            x, y, DateTimeOffset.UtcNow, Array.Empty<ItemStackSnapshot>()), chest);
+    }
+
+    internal void ForgetRemovedChest(int x, int y)
+    {
+        if (!IsLocalPlayer || Main.netMode != NetmodeID.SinglePlayer) return;
+        string key = WorldKnowledgeLedger.ChestKey(x, y);
+        CurrentLedger.RememberedChests.Remove(key);
+        _sortingOpenedChests.Remove(key);
+        if (_observedChestKey == key) ClearOpenChestObservation();
+    }
+
+    /// <summary>Refresh only an already observed chest after an explicit local sort.</summary>
+    internal void RefreshSortedChest(Chest chest)
+    {
+        if (!IsLocalPlayer || Main.netMode != NetmodeID.SinglePlayer) return;
+        WorldKnowledgeLedger ledger = CurrentLedger;
+        string key = WorldKnowledgeLedger.ChestKey(chest.x, chest.y);
+        if (!ledger.IgnoredChests.Contains(key) && ledger.RememberedChests.ContainsKey(key)
+            && _sortingOpenedChests.TryGetValue(key, out Chest? known) && ReferenceEquals(known, chest))
+            ledger.RememberedChests[key] = CaptureChest(chest, ledger);
+    }
+
+    private void ResetSortingSession()
+    {
+        _sortingOpenedChests.Clear();
+        SortingSessionId = Guid.NewGuid();
+    }
 
     private WorldKnowledgeLedger CurrentLedger
     {
@@ -168,6 +258,7 @@ public sealed class GptKnowledgePlayer : ModPlayer
             Guid worldId = Main.ActiveWorldFileData.UniqueId;
             if (_activeWorldId == worldId && _activeLedger is not null)
                 return _activeLedger;
+            ResetSortingSession();
             string key = worldId.ToString("N");
             if (!_worlds.TryGetValue(key, out WorldKnowledgeLedger? ledger))
                 _worlds[key] = ledger = new WorldKnowledgeLedger();
@@ -204,6 +295,7 @@ public sealed class GptKnowledgePlayer : ModPlayer
             FinishOpenChestObservation();
             return;
         }
+        _sortingOpenedChests[key] = chest!;
         if (!sameChest)
         {
             FinishOpenChestObservation();
@@ -297,7 +389,15 @@ public sealed class GptKnowledgePlayer : ModPlayer
         string label = string.IsNullOrWhiteSpace(chest.name) ? $"Chest at tile {chest.x}, {chest.y}" : chest.name;
         var items = new List<ItemStackSnapshot>();
         AddItems(chest.item, label + " (remembered contents)", items, ledger);
-        return new OwnedChestSnapshot(label, chest.x, chest.y, DateTimeOffset.UtcNow, items.AsReadOnly());
+        return WithIdentity(new OwnedChestSnapshot(label, chest.x, chest.y, DateTimeOffset.UtcNow, items.AsReadOnly()), chest);
+    }
+
+    private static OwnedChestSnapshot WithIdentity(OwnedChestSnapshot record, Chest chest)
+    {
+        if (chest.x < 0 || chest.y < 0 || chest.x >= Main.maxTilesX || chest.y >= Main.maxTilesY) return record;
+        Tile tile = Main.tile[chest.x, chest.y];
+        return record with { StorageIdentity = KnownChestIdentitySystem.Ensure(chest.x, chest.y),
+            TileType = tile.HasTile ? tile.TileType : -1, TileFrameX = tile.TileFrameX, TileFrameY = tile.TileFrameY };
     }
 
     private bool TryGetOpenChest(out Chest? chest)

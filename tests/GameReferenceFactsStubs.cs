@@ -12,6 +12,7 @@ namespace Terraria
     {
         public int type;
         public int stack = 1;
+        public bool favorited, IsACoin;
         public string Name { get; set; } = "";
         public bool IsAir => type == 0;
         public int maxStack = 9999;

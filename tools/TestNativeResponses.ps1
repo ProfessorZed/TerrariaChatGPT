@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $sourcePaths = @(
     'Common\Native\NativeResponsesClient.cs', 'Common\Native\ChatGptModelOption.cs', 'Common\Native\ChatGptEffortOptions.cs', 'Common\Native\NativeChatPrompt.cs',
-    'Common\Native\NativeChatException.cs', 'Common\Native\NativeReplyParser.cs',
+    'Common\Native\NativeChatException.cs', 'Common\Native\NativeReplyParser.cs','Common\Sorting\SortSuggestion.cs','Common\Native\NativeMemoryProtocol.cs','Common\Memory\MemoryModels.cs',
     'Common\Services\ChatConvenience.cs', 'Common\Services\WebCitation.cs', 'Common\Services\GoalProposalReader.cs',
     'Common\Knowledge\AnswerFormatting.cs', 'Common\Knowledge\AnswerHighlight.cs',
     'Common\Knowledge\CraftingPlanner.cs', 'Common\Knowledge\LocalKnowledgeAnswer.cs',

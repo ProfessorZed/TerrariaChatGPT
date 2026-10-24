@@ -18,7 +18,7 @@ public static partial class AssistantServiceTests
         {
             using var fixture = new Fixture(workspaceRoot, GptProvider.ChatGPT);
             Terraria.Player.RejectReads = true;
-            foreach (string question in new[] { "What am I missing for Wooden Sword?", "Do I have Wood?", "What can I make from Wood?", "Where can I find it?", "help", "Tell me a short joke." })
+            foreach (string question in new[] { "What am I missing for Wooden Sword?", "Do I have Wood?", "What can I make from Wood?", "Where can I find it?", "Sort my inventory into nearby chests now", "Confirm sort", "help", "Tell me a short joke." })
             {
                 Reply reply = fixture.Reply("This is the model's own answer.");
                 GptAssistantService.Submit(question);
@@ -168,7 +168,8 @@ public static partial class AssistantServiceTests
         foreach (string name in new[] { "knownSubjects", "inventory", "ownedChests", "currentBiomes", "facts", "referenceSubjects", "recipes" })
             Equal(0, knowledge.GetProperty(name).GetArrayLength());
         Require(!knowledge.GetProperty("recipeLookupComplete").GetBoolean(), "Empty AI context claimed recipe completeness.");
-        Equal("fabricated-version", knowledge.GetProperty("gameVersion").GetString());
+        Equal("1.4.4.9", knowledge.GetProperty("gameVersion").GetString());
+        Equal("2026.8.3.0", knowledge.GetProperty("tModLoaderVersion").GetString());
         Require(!request.GetRawText().Contains("PRIVATE-", StringComparison.Ordinal), "Private snapshot fixture data reached AI chat.");
     }
 }

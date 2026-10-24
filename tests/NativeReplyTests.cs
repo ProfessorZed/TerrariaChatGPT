@@ -246,6 +246,109 @@ public static class NativeReplyTests
             Equal(reply.Answer, "Useful answer."); Assert(reply.Highlights.Count == 0 && reply.GoalSuggestion is null);
             Reject("{\"answer\":\"\\uD800\"}");
         });
+        Check("Memory proposals are bounded inert metadata without changing answer or highlights", () =>
+        {
+            var reply = Parse(Json(new { answer = "I'll keep replies concise.", highlights = Array.Empty<object>(),
+                memorySuggestions = new object[] {
+                    new { kind = "preference", topic = "response_style", text = "Prefers short answers.", evidence = "I prefer short answers", item = "", target = "" },
+                    new { kind = "sorting", topic = "", text = "Sort Gel with blocks.", evidence = "Put Gel with building supplies", item = "Terraria/Gel", target = "Block" } } }));
+            Equal(reply.Answer, "I'll keep replies concise."); Assert(reply.MemorySuggestions.Count == 2);
+            Equal(reply.MemorySuggestions[1].Item, "Terraria/Gel"); Equal(reply.MemorySuggestions[1].Target, "Block");
+        });
+        Check("Null, broken, excessive and wrong-shaped optional memory cannot lose the complete answer", () =>
+        {
+            foreach (object? metadata in new object?[] { null, "not a list", new { kind = "preference" }, new object[] { null!, 5, "bad" },
+                Enumerable.Repeat(new { kind = "preference", topic = "language", text = "Prefers English.", evidence = "Use English" }, 4).ToArray() })
+            {
+                var reply = Parse(Json(new { answer = "Useful answer.", memorySuggestions = metadata }));
+                Equal(reply.Answer, "Useful answer."); Assert(reply.MemorySuggestions.Count == 0);
+            }
+            var truncated = Parse("{\"answer\":\"Useful answer.\",\"memorySuggestions\":[{\"kind\":");
+            Equal(truncated.Answer, "Useful answer."); Assert(truncated.MemorySuggestions.Count == 0);
+        });
+        Check("Malformed memory fields and duplicated proposal keys are discarded independently", () =>
+        {
+            string good = "{\"kind\":\"preference\",\"topic\":\"language\",\"text\":\"Prefers English.\",\"evidence\":\"Use English\"}";
+            foreach (string invalid in new[] { good.Replace("language", "credentials"), good.Replace("preference", "spawn"),
+                good.Replace("Prefers English.", new string('x', 241)), good.Replace("Use English", new string('e', 181)),
+                good.Replace("Prefers English.", "\\uD800"), good.Replace("Prefers English.", "[c/ffffff:tag]"),
+                good.Replace("\"kind\":\"preference\"", "\"kind\":\"preference\",\"kind\":\"sorting\""),
+                good.Replace("\"evidence\":\"Use English\"", "\"extraCommand\":\"do it\"") })
+            {
+                var reply = Parse("{\"answer\":\"Useful answer.\",\"memorySuggestions\":[" + invalid + "," + good + "]}");
+                Equal(reply.Answer, "Useful answer."); Assert(reply.MemorySuggestions.Count == 1);
+            }
+            Assert(Parse("{\"answer\":\"Useful.\",\"memorySuggestions\":[],\"memorySuggestions\":[" + good + "]}").MemorySuggestions.Count == 0);
+        });
+        Check("Only recognized categories or explicit exact chest labels survive sorting metadata", () =>
+        {
+            foreach (string target in new[] { "chest:Building Supplies", "Block", "boss_summon", "Travel" })
+            {
+                var reply = Parse(Json(new { answer = "Review the sort preview.", memorySuggestions = new[] {
+                    new { kind = "sorting", text = "Prefers this sorting destination.", evidence = "Store Gel there", item = "Gel", target } } }));
+                Assert(reply.MemorySuggestions.Count == 1);
+            }
+            foreach (string target in new[] { "spawn", "chest:", "chest:  ", "chest: A", "chest:" + new string('c', 81) })
+                Assert(Parse(Json(new { answer = "Useful.", memorySuggestions = new[] {
+                    new { kind = "sorting", text = "Sort Gel.", evidence = "Gel goes there", item = "Gel", target } } })).MemorySuggestions.Count == 0);
+        });
+        Check("Grappling hook group is bounded and keeps the complete answer on unsupported groups", () =>
+        {
+            foreach (string item in new[] { "group:grappling_hooks", "group:all_items", "group:weapons" })
+            {
+                var reply = Parse(Json(new { answer = "Use Sort chests to review your travel destination.", memorySuggestions = new[] {
+                    new { kind = "sorting", text = "Sort all grappling hooks as Travel.", evidence = "sort my grappling hooks into travel", item, target = "Travel" } } }));
+                Assert(reply.Answer.Contains("Sort chests", StringComparison.Ordinal));
+                Assert(reply.MemorySuggestions.Count == (item == "group:grappling_hooks" ? 1 : 0));
+            }
+        });
+        Check("Actionable sorting preserves exact literal destinations independently of the three-memory limit", () =>
+        {
+            var assignments = Enumerable.Range(0, 40).Select(index => new { itemKey = "Terraria/Item" + index, chestName = "Tools & Travel" }).ToArray();
+            var reply = Parse(Json(new { answer = "Review these 40 choices.", sortingSuggestion = new { assignments }, memorySuggestions = Array.Empty<object>() }));
+            Equal(reply.Answer, "Review these 40 choices."); Assert(reply.SortSuggestion?.Assignments.Count == 40);
+            Equal(reply.SortSuggestion!.Assignments[39].ItemKey, "Terraria/Item39");
+            Equal(reply.SortSuggestion.Assignments[0].ChestName, "Tools & Travel");
+            Assert(reply.MemorySuggestions.Count == 0);
+        });
+        Check("Malformed or truncated optional sorting never discards a complete answer", () =>
+        {
+            var assignment = new { itemKey = "Terraria/AmethystHook", chestName = "Tools & Travel" };
+            foreach (object? suggestion in new object?[] { null, "wrong", Array.Empty<object>(), new { assignments = 5 },
+                new { assignments = Array.Empty<object>() }, new { assignments = Enumerable.Repeat(assignment, 41).ToArray() },
+                new { assignments = new object[] { assignment, null! } }, new { assignments = new[] { assignment }, execute = true } })
+            {
+                var reply = Parse(Json(new { answer = "Useful answer.", sortingSuggestion = suggestion }));
+                Equal(reply.Answer, "Useful answer."); Assert(reply.SortSuggestion is null);
+            }
+            var truncated = Parse("{\"answer\":\"Useful answer.\",\"sortingSuggestion\":{\"assignments\":[{");
+            Equal(truncated.Answer, "Useful answer."); Assert(truncated.SortSuggestion is null);
+        });
+        Check("Sorting metadata rejects duplicate fields, duplicate items, unknown operations and nonliteral labels", () =>
+        {
+            string assignment = "{\"itemKey\":\"Terraria/AmethystHook\",\"chestName\":\"Tools & Travel\"}";
+            foreach (string row in new[] { assignment.Replace("Terraria/AmethystHook", "group:grappling_hooks"),
+                assignment.Replace("Terraria/AmethystHook", "Amethyst Hook"), assignment.Replace("Terraria/AmethystHook", " Terraria/AmethystHook"),
+                assignment.Replace("Terraria/AmethystHook", "Terraria/a.b"), assignment.Replace("Terraria/AmethystHook", "Terraria/" + new string('a', 180)),
+                assignment.Replace("Tools & Travel", " Tools & Travel"), assignment.Replace("Tools & Travel", new string('a', 81)),
+                assignment.Replace("Tools & Travel", "\\uD800"), assignment.Replace("Tools & Travel", "Tools\\nTravel"),
+                assignment.Replace("Tools & Travel", "[c/ffffff:Travel]"), assignment.Replace("Tools & Travel", "Tools\\u202eTravel"),
+                assignment.Replace("\"itemKey\":", "\"move\":true,\"itemKey\":"),
+                assignment.Replace("\"itemKey\":", "\"itemKey\":\"Terraria/Gel\",\"itemKey\":") })
+            {
+                var reply = Parse("{\"answer\":\"Useful.\",\"sortingSuggestion\":{\"assignments\":[" + row + "]}}");
+                Equal(reply.Answer, "Useful."); Assert(reply.SortSuggestion is null);
+            }
+            string proposal = "{\"assignments\":[" + assignment + "]}";
+            Assert(Parse("{\"answer\":\"Useful.\",\"sortingSuggestion\":" + proposal + ",\"sortingSuggestion\":" + proposal + "}").SortSuggestion is null);
+            Assert(Parse("{\"answer\":\"Useful.\",\"sortingSuggestion\":{\"assignments\":[" + assignment + "," + assignment + "]}}").SortSuggestion is null);
+        });
+        Check("Recovered plain answer accepts inert sorting metadata but never renders a raw routing tail", () =>
+        {
+            var reply = Parse("Review sort.\",\"highlights\":[],\"sortingSuggestion\":{\"assignments\":[{\"itemKey\":\"Terraria/AmethystHook\",\"chestName\":\"Tools & Travel\"}]}}");
+            Equal(reply.Answer, "Review sort."); Assert(reply.SortSuggestion?.Assignments.Count == 1);
+            Reject("Useful.},\"sortingSuggestion\":{\"assignments\":[]}");
+        });
         return results.ToArray();
     }
 

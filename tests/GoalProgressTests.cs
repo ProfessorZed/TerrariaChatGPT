@@ -42,6 +42,13 @@ public static class GoalProgressTests
             Assert(f.Progress.CreateSnapshot().RememberedItems.Single().ChestLabel == "Previously opened chest", "Coordinates leaked through default label.");
             Assert(!typeof(ProgressSnapshot).GetProperties().Any(p => p.Name.Contains("World") && p.Name != "WorldProgress"), "World identity field exported.");
         });
+        Check("Empty known chests retain their labels without reading closed contents", () =>
+        {
+            var f = new Fixture(); var chest = Chest("Vanity & Paints"); f.Open(chest); f.Tick(); f.Close();
+            f.Tick(); var snapshot = f.Progress.CreateSnapshot();
+            Assert(snapshot.KnownChests.Single().Name == "Vanity & Paints", "Empty known chest label lost.");
+            Assert(snapshot.RememberedItems.Count == 0 && Main.chest.Reads.Count == 0, "Closed contents were inspected.");
+        });
         Check("Inventory, equipment and cursor observations avoid mirror duplication", () =>
         {
             var f = new Fixture(); f.Player.inventory = Enumerable.Range(0, 59).Select(_ => new Item()).ToArray();
@@ -99,6 +106,146 @@ public static class GoalProgressTests
             var f = new Fixture(); var note = f.Set(new GoalProposal("Rescue", new[] { new GoalStepDefinition("npc", "Goblin Tinkerer", "Goblin") }));
             Assert(!note.IsComplete, "Unrescued NPC marked done."); NPC.savedGoblin = true; f.Tick();
             Assert(note.IsComplete && note.Steps.Single().Detail.Contains("location is unknown"), "Rescue status not scoped.");
+        });
+        Check("One-tick NPC conversations capture exact computed happiness without waiting a second", () =>
+        {
+            var f = new Fixture(); f.Player.ZoneSnow = true;
+            f.Talk(22, "Guide", 0.8899999856948853, "I like the Snow. I love having space.");
+            f.Progress.PostUpdate(); var value = f.Progress.CreateSnapshot().NpcHappiness.Single();
+            Assert(value.Key == "Terraria/Guide" && value.PriceAdjustment == 0.8899999856948853 && value.IsCurrent,
+                "Exact game-computed observation was not captured immediately.");
+            Assert(value.HappinessReport.Contains("having space") && value.ObservedBiomes.SequenceEqual(new[] { "Snow" }), "Visible reasons/biome missing.");
+            Assert(Main.chest.Reads.Count == 0, "NPC observation touched storage.");
+        });
+        Check("Chat submission captures an active conversation before the next progress tick", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.95, "Space is lovely.");
+            var snapshot = f.Progress.CreateSnapshot();
+            Assert(snapshot.NpcHappiness.Single().IsCurrent, "Submission missed the active dialogue.");
+            Assert(snapshot.CapturedAtUtc >= snapshot.NpcHappiness.Single().LastObservedUtc, "Snapshot timestamp predates its new happiness observation.");
+        });
+        Check("Unchanged cached shop settings preserve their original observation time", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.95, "Space is lovely.");
+            var before = f.Progress.CreateSnapshot().NpcHappiness.Single(); f.Tick();
+            var after = f.Progress.CreateSnapshot().NpcHappiness.Single();
+            Assert(before.LastObservedUtc == after.LastObservedUtc && after.IsCurrent, "Cached result pretended to be newly computed.");
+        });
+        Check("Switching conversations associates each synchronous shopping result with the correct NPC", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.95, "Guide's report.");
+            var old = f.Progress.CreateSnapshot();
+            f.Talk(107, "Goblin Tinkerer", 1.25, "Goblin's report.");
+            var values = f.Progress.CreateSnapshot().NpcHappiness;
+            Assert(values.Single(value => value.Key == "Terraria/Guide") is { IsCurrent: false, PriceAdjustment: 0.95 }, "Old NPC stayed current.");
+            Assert(values.Single(value => value.Key == "Terraria/Npc107") is { IsCurrent: true, PriceAdjustment: 1.25, HappinessReport: "Goblin's report." }, "New NPC inherited old settings.");
+            Assert(old.NpcHappiness.Single().IsCurrent && old.NpcHappiness.Count == 1, "Detached request snapshot was mutated.");
+        });
+        Check("Closing a conversation immediately marks its last result remembered without reading the old NPC", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.9, "I like it here."); var npc = f.Player.TalkNPC!;
+            f.Progress.CreateSnapshot(); f.EndTalk(); npc.TypeName = "Changed while off-screen";
+            var value = f.Progress.CreateSnapshot().NpcHappiness.Single();
+            Assert(!value.IsCurrent && value.Name == "Guide" && value.PriceAdjustment == 0.9, "Closed dialogue was polled or kept live.");
+        });
+        Check("Switch to unavailable default settings never assigns the previous NPC's report", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.9, "Guide report."); f.Progress.CreateSnapshot();
+            f.Talk(107, "Goblin", 1, ""); var values = f.Progress.CreateSnapshot().NpcHappiness;
+            Assert(values.Count == 1 && !values[0].IsCurrent && values[0].Name == "Guide", "Unavailable report created false neutral happiness.");
+        });
+        Check("Changes to a current game-computed result replace evidence without changing game settings", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 1.2, "Crowded."); f.Progress.CreateSnapshot();
+            f.Player.currentShoppingSettings = new ShoppingSettings { PriceAdjustment = 0.85, HappinessReport = "I have space now." };
+            f.Progress.PostUpdate(); var value = f.Progress.CreateSnapshot().NpcHappiness.Single();
+            Assert(value.PriceAdjustment == 0.85 && value.HappinessReport == "I have space now." && f.Player.currentShoppingSettings.PriceAdjustment == 0.85,
+                "New evidence was missed or game settings changed.");
+        });
+        Check("Unsupported NPCs, pets, inactive NPCs and disabled happiness produce no happiness claims", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 1, "Synthetic report.");
+            f.Player.TalkNPC!.townNPC = false; Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "Non-town NPC included.");
+            f.Player.TalkNPC.townNPC = true; NPCID.Sets.NoTownNPCHappiness[22] = true;
+            Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "Explicit opt-out ignored.");
+            NPCID.Sets.NoTownNPCHappiness[22] = false; NPCID.Sets.IsTownPet[22] = true;
+            Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "Pet happiness invented.");
+            NPCID.Sets.IsTownPet[22] = false; f.Player.TalkNPC.active = false;
+            Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "Inactive NPC read.");
+            f.Player.TalkNPC.active = true; Main.remixWorld = true;
+            Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "Disabled world happiness reported.");
+        });
+        Check("Invalid numeric results and empty reports are rejected while valid modded modifiers are preserved", () =>
+        {
+            var f = new Fixture();
+            foreach (double price in new[] { double.NaN, double.PositiveInfinity, double.NegativeInfinity, -1, 0, 0.001, 101 })
+            { f.Talk(22, "Guide", price, "Report."); Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "Invalid price accepted."); }
+            f.Talk(22, "Guide", 1, "\r\n [ ] "); Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "Empty sanitized report accepted.");
+            f.Talk(22, "Guide", 2, "Modded mood."); Assert(f.Progress.CreateSnapshot().NpcHappiness.Single().PriceAdjustment == 2, "Modded price clamped to vanilla range.");
+        });
+        Check("Happiness text is bounded and sanitized and snapshots expose no NPC references or coordinates", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "[Guide]\n" + new string('n', 200), 0.95, "[report]\0" + new string('r', 4000));
+            var value = f.Progress.CreateSnapshot().NpcHappiness.Single();
+            Assert(value.Name.Length == 100 && value.HappinessReport.Length == 2000 && !value.HappinessReport.Any(char.IsControl)
+                && !value.Name.Contains('[') && !value.HappinessReport.Contains(']'), "Unsafe/unbounded text retained.");
+            Assert(!typeof(NpcHappinessObservation).GetProperties().Any(property => property.PropertyType == typeof(NPC)
+                || property.Name.Contains("Position") || property.Name.Contains("Home") || property.Name.Contains("Coordinate")), "World identity/location exported.");
+        });
+        Check("Happiness survives saving and reloading as remembered evidence, with its exact timestamp", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.91, "I like Forest.");
+            var before = f.Progress.CreateSnapshot().NpcHappiness.Single(); var saved = new TagCompound(); f.Progress.SaveData(saved);
+            f.EndTalk(); f.Progress.LoadData(saved); f.Progress.OnEnterWorld(); var after = f.Progress.CreateSnapshot().NpcHappiness.Single();
+            Assert(!after.IsCurrent && after.LastObservedUtc == before.LastObservedUtc && after.PriceAdjustment == before.PriceAdjustment
+                && after.HappinessReport == before.HappinessReport, "Remembered happiness did not round-trip.");
+        });
+        Check("Happiness memory stays partitioned by world and character", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.95, "Report A."); f.Progress.CreateSnapshot(); f.EndTalk();
+            Main.ActiveWorldFileData.UniqueId = WorldB; f.Progress.OnEnterWorld();
+            Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 0, "World A happiness leaked to B.");
+            Main.ActiveWorldFileData.UniqueId = WorldA; f.Progress.OnEnterWorld();
+            Assert(f.Progress.CreateSnapshot().NpcHappiness.Single() is { IsCurrent: false, HappinessReport: "Report A." }, "Original world's memory lost.");
+            Assert(new Player { whoAmI = 0 }.GetModPlayer<GptProgressPlayer>().CreateSnapshot().NpcHappiness.Count == 0, "Another character inherited happiness.");
+        });
+        Check("Happiness capture is disabled for remote players, menu and server and cannot retain a false current marker", () =>
+        {
+            var f = new Fixture(); f.Talk(22, "Guide", 0.95, "Report."); f.Progress.CreateSnapshot();
+            Main.gameMenu = true; f.EndTalk(); f.Progress.PostUpdate(); Main.gameMenu = false;
+            Assert(!f.Progress.CreateSnapshot().NpcHappiness.Single().IsCurrent, "Menu transition retained current status.");
+            f.Talk(107, "Goblin", 1.2, "Never observe."); f.Player.whoAmI = 1; f.Progress.PostUpdate();
+            f.Player.whoAmI = 0; Main.dedServ = true; f.Progress.PostUpdate(); Main.dedServ = false; f.EndTalk();
+            Assert(f.Progress.CreateSnapshot().NpcHappiness.Count == 1, "Nonlocal/server happiness captured.");
+        });
+        Check("Happiness record count is bounded and retains the newest observations", () =>
+        {
+            var ledger = new WorldGoalLedger(); DateTimeOffset now = DateTimeOffset.UtcNow;
+            for (int i = 0; i < WorldGoalLedger.MaximumHappinessRecords + 3; i++)
+                Assert(ledger.RememberHappiness("Test/Npc" + i, "NPC " + i, 1, "Report.", now.AddSeconds(i - 200), Array.Empty<string>()), "Valid record rejected.");
+            Assert(ledger.NpcHappiness.Count == WorldGoalLedger.MaximumHappinessRecords && !ledger.NpcHappiness.ContainsKey("Test/Npc0")
+                && ledger.NpcHappiness.ContainsKey("Test/Npc130"), "Memory was unbounded or evicted new evidence.");
+        });
+        Check("Malformed happiness entries are skipped without losing goals or valid observations", () =>
+        {
+            var f = new Fixture(); f.Set(ManualGoal("Keep this goal")); f.Talk(22, "Guide", 0.95, "Valid report.");
+            var saved = new TagCompound(); f.Progress.SaveData(saved); var world = saved.GetList<TagCompound>("worlds")[0];
+            var values = world.GetList<TagCompound>("happiness");
+            values.Add(new TagCompound { ["key"] = "Test/Invalid", ["name"] = "Invalid", ["price"] = "not a number", ["report"] = "Bad.", ["observed"] = DateTimeOffset.UtcNow.ToString("O") });
+            values.Add(new TagCompound { ["key"] = "Test/Future", ["name"] = "Future", ["price"] = 1.0, ["report"] = "Bad.", ["observed"] = DateTimeOffset.UtcNow.AddDays(1).ToString("O") });
+            f.EndTalk(); f.Progress.LoadData(saved); f.Progress.OnEnterWorld();
+            Assert(f.Progress.ActiveGoals.Single().Title == "Keep this goal" && f.Progress.CreateSnapshot().NpcHappiness.Single().Name == "Guide", "Corrupt entry discarded unrelated data.");
+        });
+        Check("Malformed happiness containers cannot discard the world's existing goals", () =>
+        {
+            foreach (object invalid in new object[] { "not a list", new List<string> { "wrong elements" }, 7 })
+            {
+                var f = new Fixture(); f.Set(ManualGoal("Keep this goal")); var saved = new TagCompound(); f.Progress.SaveData(saved);
+                saved.GetList<TagCompound>("worlds")[0]["happiness"] = invalid;
+                f.Progress.LoadData(saved); f.Progress.OnEnterWorld();
+                Assert(f.Progress.ActiveGoals.Single().Title == "Keep this goal" && f.Progress.CreateSnapshot().NpcHappiness.Count == 0,
+                    "Malformed happiness container discarded the world ledger.");
+            }
         });
         Check("Unsupported goals become honest manual steps and cannot perform game actions", () =>
         {
@@ -281,7 +428,8 @@ public static class GoalProgressTests
         public GptKnowledgePlayer Knowledge => Player.GetModPlayer<GptKnowledgePlayer>();
         public Fixture()
         {
-            Main.dedServ = Main.gameMenu = Main.hardMode = false; Main.myPlayer = 0; Main.netMode = NetmodeID.SinglePlayer;
+            Main.dedServ = Main.gameMenu = Main.hardMode = Main.remixWorld = false; Main.myPlayer = 0; Main.netMode = NetmodeID.SinglePlayer;
+            NPCID.Sets.NoTownNPCHappiness = new bool[1000]; NPCID.Sets.IsTownPet = new bool[1000];
             Main.chest = new ChestReadSpy(); Main.mouseItem = new Item(); Main.ActiveWorldFileData = new WorldFileData { UniqueId = WorldA };
             Main.Achievements = new AchievementManager();
             foreach (var field in typeof(NPC).GetFields().Where(field => field.IsStatic && field.FieldType == typeof(bool))) field.SetValue(null, false);
@@ -293,5 +441,17 @@ public static class GoalProgressTests
         public void Tick() { for (int i = 0; i < 60; i++) { Knowledge.PostUpdate(); Progress.PostUpdate(); } }
         public void Open(Chest chest) { Main.chest.Set(7, chest); Main.chest.AllowedIndex = 7; Player.chest = 7; }
         public void Close() { Player.chest = -1; Main.chest.AllowedIndex = null; Main.chest.Reads.Clear(); }
+        public void Talk(int type, string name, double price, string report)
+        {
+            // Mirrors SetTalkNPC's synchronous association, without running the game's
+            // resident-inspecting happiness calculation in this isolated test host.
+            Player.TalkNPC = new NPC { type = type, TypeName = name };
+            Player.currentShoppingSettings = new ShoppingSettings { PriceAdjustment = price, HappinessReport = report };
+        }
+        public void EndTalk()
+        {
+            Player.TalkNPC = null;
+            Player.currentShoppingSettings = new ShoppingSettings { PriceAdjustment = 1, HappinessReport = "" };
+        }
     }
 }

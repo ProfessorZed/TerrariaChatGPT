@@ -7,13 +7,19 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using TerrariaChatGPT.Common.Goals;
 using TerrariaChatGPT.Common.Knowledge;
+using TerrariaChatGPT.Common.Memory;
 using TerrariaChatGPT.Common.Services;
+using TerrariaChatGPT.Common.Sorting;
 
 namespace TerrariaChatGPT.Common.Native;
 
 public sealed record NativeSourceAnnotation(string Url, string Title, int Start, int End);
 public sealed record NativeChatReply(string Answer, IReadOnlyList<AnswerHighlight> Highlights,
-    IReadOnlyList<WebCitation> Citations, bool WebSearched, GoalProposal? GoalSuggestion);
+    IReadOnlyList<WebCitation> Citations, bool WebSearched, GoalProposal? GoalSuggestion)
+{
+    public IReadOnlyList<MemoryProposal> MemorySuggestions { get; init; } = Array.Empty<MemoryProposal>();
+    public SortSuggestion? SortSuggestion { get; init; }
+}
 
 /// <summary>
 /// Decodes a completed model reply into literal text and inert display metadata.
@@ -29,12 +35,18 @@ public static class NativeReplyParser
     private static readonly Regex PartialTail = new("\"\\s*,\\s*\"highlights(?:\"\\s*)?\\z");
     private static readonly Regex BrokenStart = new("^\\s*\"?(?:answer|highlights)\"\\s*:");
     private static readonly Regex GoalTail = new("[,}]\\s*\"goalSuggestion\"\\s*:");
+    private static readonly Regex MemoryTail = new("[,}]\\s*\"memorySuggestions\"\\s*:");
+    private static readonly Regex SortingTail = new("[,}]\\s*\"sortingSuggestion\"\\s*:");
     private static readonly Regex CitationMarkup = new(@"\A(?:\(?\[[^\]\n]+\]\(https?://[^\s]+\)\)?|\ue200[^\ue201]*\ue201|【[^】]*】)\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly JsonDocumentOptions JsonOptions = new() { MaxDepth = 32 };
     private static readonly HashSet<string> BossKeys = new(GoalCatalog.Bosses.Select(boss => boss.Key), StringComparer.Ordinal);
 
     private sealed record Decoded(string Answer, int Start, int End, bool Escaped,
-        IReadOnlyList<AnswerHighlight> Highlights, GoalProposal? Goal);
+        IReadOnlyList<AnswerHighlight> Highlights, GoalProposal? Goal)
+    {
+        public IReadOnlyList<MemoryProposal> Memories { get; init; } = Array.Empty<MemoryProposal>();
+        public SortSuggestion? Sorting { get; init; }
+    }
     private sealed record SourceEdit(int Start, int End, string Replacement);
 
     public static NativeChatReply Parse(string text, IReadOnlyList<NativeSourceAnnotation> annotations, bool searched)
@@ -114,7 +126,8 @@ public static class NativeReplyParser
         if (string.IsNullOrWhiteSpace(answer) || HasEnvelopeFragment(answer)) throw BadReply();
         sources = sources.Where(source => answer.Contains("[" + source.Index + "]", StringComparison.Ordinal)).ToList();
         IReadOnlyList<AnswerHighlight> highlights = AnswerFormatting.Validate(answer, decoded.Highlights);
-        return new(answer, highlights, sources.AsReadOnly(), searched, decoded.Goal);
+        return new(answer, highlights, sources.AsReadOnly(), searched, decoded.Goal)
+        { MemorySuggestions = decoded.Memories, SortSuggestion = decoded.Sorting };
     }
 
     private static Decoded Decode(string value)
@@ -133,7 +146,8 @@ public static class NativeReplyParser
                     if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count(field => field.Name == "answer") != 1
                         || !root.TryGetProperty("answer", out JsonElement answer) || answer.ValueKind != JsonValueKind.String
                         || !FindAnswer(value, out int start, out int end, out string decoded)) throw BadReply();
-                    return new(decoded, start, end, true, ReadHighlights(root), ReadGoal(root));
+                    return new(decoded, start, end, true, ReadHighlights(root), ReadGoal(root))
+                    { Memories = ReadMemories(root), Sorting = ReadSorting(root) };
                 }
             }
             // A complete top-level answer followed by truncated optional JSON
@@ -153,8 +167,10 @@ public static class NativeReplyParser
             {
                 using JsonDocument suffix = JsonDocument.Parse("{\"highlights\":" + value[(marker.Index + marker.Length)..], JsonOptions);
                 JsonElement root = suffix.RootElement;
-                if (root.ValueKind != JsonValueKind.Object || HasDuplicates(root)
-                    || root.EnumerateObject().Any(field => field.Name is not ("highlights" or "goalSuggestion"))
+                if (root.ValueKind != JsonValueKind.Object
+                    || root.EnumerateObject().Where(field => field.Name is not ("memorySuggestions" or "sortingSuggestion")).Any(field => HasDuplicates(field.Value))
+                    || root.EnumerateObject().Where(field => field.Name is not ("memorySuggestions" or "sortingSuggestion")).GroupBy(field => field.Name).Any(group => group.Count() > 1)
+                    || root.EnumerateObject().Any(field => field.Name is not ("highlights" or "goalSuggestion" or "memorySuggestions" or "sortingSuggestion"))
                     || !root.TryGetProperty("highlights", out JsonElement rows) || !StrictHighlights(rows)) throw BadReply();
                 bool escaped = false;
                 string answer = prefix;
@@ -163,7 +179,8 @@ public static class NativeReplyParser
                     try { answer = JsonSerializer.Deserialize<string>("\"" + prefix + "\"")!; escaped = true; }
                     catch (JsonException) { }
                 }
-                return new(answer, 0, marker.Index, escaped, ReadHighlights(root), ReadGoal(root));
+                return new(answer, 0, marker.Index, escaped, ReadHighlights(root), ReadGoal(root))
+                { Memories = ReadMemories(root), Sorting = ReadSorting(root) };
             }
             catch (JsonException) { throw BadReply(); }
         }
@@ -230,7 +247,7 @@ public static class NativeReplyParser
         && !(index > 0 && index < text.Length && char.IsHighSurrogate(text[index - 1]) && char.IsLowSurrogate(text[index]));
 
     private static bool HasEnvelopeFragment(string value) => Tail.IsMatch(value) || PartialTail.IsMatch(value)
-        || BrokenStart.IsMatch(value) || GoalTail.IsMatch(value);
+        || BrokenStart.IsMatch(value) || GoalTail.IsMatch(value) || MemoryTail.IsMatch(value) || SortingTail.IsMatch(value);
 
     private static bool HasDuplicates(JsonElement value)
     {
@@ -274,6 +291,67 @@ public static class NativeReplyParser
             || Sanitize(text) != text) return false;
         highlight = new(text, kind);
         return true;
+    }
+
+    private static IReadOnlyList<MemoryProposal> ReadMemories(JsonElement root)
+    {
+        // Optional data must never discard a complete answer. Refuse ambiguous
+        // or oversized metadata rather than silently persisting a partial set.
+        if (root.EnumerateObject().Count(field => field.Name == "memorySuggestions") != 1
+            || !root.TryGetProperty("memorySuggestions", out JsonElement rows)
+            || rows.ValueKind != JsonValueKind.Array || rows.GetArrayLength() > 3)
+            return Array.Empty<MemoryProposal>();
+        var result = new List<MemoryProposal>();
+        foreach (JsonElement row in rows.EnumerateArray())
+        {
+            if (row.ValueKind != JsonValueKind.Object || HasDuplicates(row)
+                || row.EnumerateObject().Any(field => field.Name is not ("kind" or "topic" or "text" or "evidence" or "item" or "target"))
+                || !Field(row, "kind", 12, out string kind) || kind is not ("preference" or "sorting")
+                || !Field(row, "text", 240, out string text) || !NativeMemoryProtocol.Literal(text, 240)
+                || !Field(row, "evidence", 180, out string evidence) || !NativeMemoryProtocol.Literal(evidence, 180)) continue;
+            string topic = "", item = "", target = "";
+            if (kind == "preference")
+            {
+                if (!Field(row, "topic", 24, out topic) || !NativeMemoryProtocol.Topic(topic)
+                    || !EmptyOptional(row, "item") || !EmptyOptional(row, "target")) continue;
+            }
+            else
+            {
+                if (!Field(row, "item", 100, out item) || !NativeMemoryProtocol.Literal(item, 100)
+                    || item.StartsWith("group:", StringComparison.Ordinal) && !NativeMemoryProtocol.ItemKey(item)
+                    || !Field(row, "target", 110, out string suppliedTarget)
+                    || NativeMemoryProtocol.Target(suppliedTarget) is not string validTarget) continue;
+                target = validTarget;
+            }
+            result.Add(new(kind, topic, text, evidence, item, target));
+        }
+        return result.AsReadOnly();
+    }
+
+    private static bool EmptyOptional(JsonElement row, string name) => !row.TryGetProperty(name, out JsonElement field)
+        || field.ValueKind == JsonValueKind.String && StringValue(field) == "";
+
+    private static SortSuggestion? ReadSorting(JsonElement root)
+    {
+        // This is inert routing data. The host must bind every key and exact
+        // chest label to its request snapshot, then revalidate the local preview.
+        if (root.EnumerateObject().Count(field => field.Name == "sortingSuggestion") != 1
+            || !root.TryGetProperty("sortingSuggestion", out JsonElement value) || value.ValueKind != JsonValueKind.Object
+            || HasDuplicates(value) || value.EnumerateObject().Any(field => field.Name != "assignments")
+            || !value.TryGetProperty("assignments", out JsonElement rows) || rows.ValueKind != JsonValueKind.Array
+            || rows.GetArrayLength() is < 1 or > 40) return null;
+        var result = new List<SortAssignment>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (JsonElement row in rows.EnumerateArray())
+        {
+            if (row.ValueKind != JsonValueKind.Object || row.EnumerateObject().Count() != 2
+                || !Field(row, "itemKey", 180, out string key) || !SortSuggestionValidator.IsItemKey(key)
+                || StringValue(row.GetProperty("itemKey")) != key || !seen.Add(key)
+                || !Field(row, "chestName", 80, out string chest) || !SortSuggestionValidator.IsChestName(chest)
+                || StringValue(row.GetProperty("chestName")) != chest) return null;
+            result.Add(new(key, chest));
+        }
+        return new(result.AsReadOnly());
     }
 
     private static GoalProposal? ReadGoal(JsonElement root)
